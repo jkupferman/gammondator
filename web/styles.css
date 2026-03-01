@@ -129,6 +129,10 @@ button.valid-target-btn {
   cursor: pointer;
 }
 
+.board-point.down {
+  justify-content: flex-start;
+}
+
 .board-point::before {
   content: "";
   position: absolute;
