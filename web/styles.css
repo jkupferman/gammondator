@@ -340,6 +340,34 @@ button:disabled {
   line-height: 1.35;
 }
 
+.feedback-quality {
+  font-weight: 800;
+}
+
+.feedback-quality.quality-excellent,
+.feedback-quality.quality-good {
+  color: #2f6d3a;
+}
+
+.feedback-quality.quality-inaccuracy {
+  color: #8a6a1a;
+}
+
+.feedback-quality.quality-mistake,
+.feedback-quality.quality-blunder {
+  color: #9b3d2f;
+}
+
+.feedback-win-delta.delta-up {
+  color: #2f6d3a;
+  font-weight: 700;
+}
+
+.feedback-win-delta.delta-down {
+  color: #9b3d2f;
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .board-stage {
     grid-template-columns: 1fr;

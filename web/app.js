@@ -42,6 +42,45 @@ function notify(message, isError = false) {
   el.feedback.textContent = isError ? `Error: ${message}` : message;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function parseNotationSteps(notation) {
+  if (!notation) return [];
+  return String(notation)
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.includes("/"));
+}
+
+function countSharedSteps(playedNotation, bestNotation) {
+  const played = parseNotationSteps(playedNotation);
+  const best = parseNotationSteps(bestNotation);
+  if (!played.length || !best.length) {
+    return { shared: 0, total: played.length };
+  }
+  const bestCounts = new Map();
+  for (const step of best) {
+    bestCounts.set(step, (bestCounts.get(step) || 0) + 1);
+  }
+  let shared = 0;
+  for (const step of played) {
+    const remaining = bestCounts.get(step) || 0;
+    if (remaining > 0) {
+      shared += 1;
+      bestCounts.set(step, remaining - 1);
+    }
+  }
+  return { shared, total: played.length };
+}
+
 function setTransientStatus(message, isError = false, durationMs = 1800) {
   if (state.transientStatusTimer !== null) {
     clearTimeout(state.transientStatusTimer);
@@ -102,7 +141,7 @@ function startingPosition() {
 
 function formatMoveAnalysisSummary(analysis) {
   if (!analysis || !analysis.played_move || !analysis.best_move) {
-    return "No move analysis available.";
+    return null;
   }
   const played = analysis.played_move;
   const best = analysis.best_move;
@@ -118,6 +157,7 @@ function formatMoveAnalysisSummary(analysis) {
   const isOptimal = loss <= 0.001;
   const currentWinPct = estimateWinPctFromEquity(played.equity);
   const winDelta = state.lastHumanWinPct === null ? null : currentWinPct - state.lastHumanWinPct;
+  const sharedSteps = countSharedSteps(played.notation, best.notation);
   const lossHint =
     isOptimal
       ? "You found an optimal move."
@@ -149,15 +189,18 @@ function formatMoveAnalysisSummary(analysis) {
     ? "Next step: Same strength as best move; notation order is just different."
     : `Next step: ${nextStep}`;
   state.lastHumanWinPct = currentWinPct;
-  return [
+  return {
+    quality: played.quality,
     qualityTitle,
-    `You played: ${played.notation}`,
-    `Best line: ${bestLine}`,
-    `Equity loss: ${loss.toFixed(3)}. ${lossHint}`,
-    winPctLine.replace("Win %", "Win Pct"),
-    `Why: ${firstReason}`,
+    playedNotation: played.notation,
+    bestLine,
+    equityLossLine: `Equity loss: ${loss.toFixed(3)}. ${lossHint}`,
+    winPctValue: currentWinPct,
+    winDelta,
+    whyLine: `Why: ${firstReason}`,
     nextStepLine,
-  ].join("\n");
+    sharedSteps,
+  };
 }
 
 function buildNextStepAdvice({ isOptimal, playedNotation, bestNotation, firstReason, equityLoss }) {
@@ -195,6 +238,45 @@ function buildNextStepAdvice({ isOptimal, playedNotation, bestNotation, firstRea
 function estimateWinPctFromEquity(equity) {
   const normalized = Math.max(-1, Math.min(1, Number(equity) || 0));
   return 50 + normalized * 50;
+}
+
+function renderAnalysisFeedback(analysis, aiSummary = "") {
+  const summary = formatMoveAnalysisSummary(analysis);
+  if (!summary) {
+    notify("No move analysis available.");
+    return;
+  }
+  const qualityClass = `quality-${summary.quality || "good"}`;
+  const deltaText =
+    summary.winDelta === null
+      ? ""
+      : ` (${summary.winDelta >= 0 ? "+" : ""}${summary.winDelta.toFixed(1)}%)`;
+  const deltaClass =
+    summary.winDelta === null ? "delta-flat" : summary.winDelta >= 0 ? "delta-up" : "delta-down";
+  const sharedLine =
+    summary.sharedSteps.total > 0 && summary.sharedSteps.shared < summary.sharedSteps.total
+      ? `Shared steps with best line: ${summary.sharedSteps.shared}/${summary.sharedSteps.total}`
+      : null;
+  const lines = [
+    `<span class="feedback-quality ${qualityClass}">${escapeHtml(summary.qualityTitle)}</span>`,
+    `You played: ${escapeHtml(summary.playedNotation)}`,
+    `Best line: ${escapeHtml(summary.bestLine)}`,
+  ];
+  if (sharedLine) {
+    lines.push(escapeHtml(sharedLine));
+  }
+  lines.push(escapeHtml(summary.equityLossLine));
+  lines.push(
+    `Win Pct: ${summary.winPctValue.toFixed(1)}%` +
+      (deltaText ? ` <span class="feedback-win-delta ${deltaClass}">${escapeHtml(deltaText)}</span>` : ""),
+  );
+  lines.push(escapeHtml(summary.whyLine));
+  lines.push(escapeHtml(summary.nextStepLine));
+  if (aiSummary) {
+    lines.push("");
+    lines.push(escapeHtml(aiSummary));
+  }
+  el.feedback.innerHTML = lines.join("\n");
 }
 
 function formatTipSummary(selectedMove, suggestion) {
@@ -868,10 +950,9 @@ async function submitMove() {
     state.position = played.current_position;
     render();
     const aiSummary = aiReplies.length
-      ? `\nAI replies: ${aiReplies.map((turn) => turn.selected_play?.notation || turn.selected_move?.notation || "pass").join(" | ")}`
+      ? `AI replies: ${aiReplies.map((turn) => turn.selected_play?.notation || turn.selected_move?.notation || "pass").join(" | ")}`
       : "";
-
-    notify(`${formatMoveAnalysisSummary(played.analysis)}${aiSummary}`);
+    renderAnalysisFeedback(played.analysis, aiSummary);
     await refreshLegalMoves();
   } catch (err) {
     notify(err.message, true);
