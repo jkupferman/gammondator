@@ -329,10 +329,13 @@ function renderAnalysisFeedback(analysis, aiSummary = "") {
   const deltaClass =
     !hasDelta || isFlatDelta ? "delta-flat" : normalizedDelta >= 0 ? "delta-up" : "delta-down";
   const playedWithShared = renderPlayedNotationWithSharedSteps(summary.playedNotation, summary.bestLine);
+  const sharedInfo = countSharedSteps(summary.playedNotation, summary.bestLine);
+  const bestLineClass =
+    sharedInfo.total > 0 && sharedInfo.shared > 0 ? "feedback-best-line" : "feedback-step-normal";
   const lines = [
     `<span class="feedback-quality ${qualityClass}">${escapeHtml(summary.qualityTitle)}</span>`,
     `You played: ${playedWithShared}`,
-    `Best line: <span class="feedback-best-line">${escapeHtml(summary.bestLine)}</span>`,
+    `Best line: <span class="${bestLineClass}">${escapeHtml(summary.bestLine)}</span>`,
   ];
   lines.push(escapeHtml(summary.equityLossLine));
   lines.push(
