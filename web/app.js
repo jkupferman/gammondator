@@ -169,6 +169,12 @@ function currentTurnActorFilter() {
   return value === "human" || value === "ai" ? value : "all";
 }
 
+function workingPosition() {
+  if (!state.position) return null;
+  if (!state.moveSteps.length) return state.position;
+  return projectPositionAfterSteps(state.position, state.moveSteps);
+}
+
 function clonePosition(position) {
   return {
     points: [...position.points],
@@ -427,15 +433,17 @@ function canChooseSource(point) {
   if (!state.position || state.animating) {
     return false;
   }
+  const position = workingPosition();
+  if (!position) return false;
   const turn = state.position.turn;
   if (point >= 1 && point <= 24) {
-    const value = state.position.points[point - 1] || 0;
+    const value = position.points[point - 1] || 0;
     if (turn === "white" && value <= 0) return false;
     if (turn === "black" && value >= 0) return false;
   } else if (point === 25) {
-    if (turn !== "white" || state.position.bar_white <= 0) return false;
+    if (turn !== "white" || position.bar_white <= 0) return false;
   } else if (point === 0) {
-    if (turn !== "black" || state.position.bar_black <= 0) return false;
+    if (turn !== "black" || position.bar_black <= 0) return false;
   } else {
     return false;
   }
@@ -609,10 +617,14 @@ function renderBoard() {
     renderAnimationStatus();
     return;
   }
+  const boardPosition = workingPosition();
+  if (!boardPosition) {
+    return;
+  }
   renderAnimationStatus();
 
   el.turnLabel.textContent = `Turn: ${state.position.turn}`;
-  el.barOffLabel.textContent = `Bar W/B: ${state.position.bar_white}/${state.position.bar_black} | Off W/B: ${state.position.off_white}/${state.position.off_black}`;
+  el.barOffLabel.textContent = `Bar W/B: ${boardPosition.bar_white}/${boardPosition.bar_black} | Off W/B: ${boardPosition.off_white}/${boardPosition.off_black}`;
   el.cubeLabel.textContent = `Cube: ${state.position.cube_value} | Dice: ${state.position.dice[0]}-${state.position.dice[1]}`;
 
   const topLeft = [13, 14, 15, 16, 17, 18];
@@ -623,7 +635,7 @@ function renderBoard() {
 
   function buildPoint(point, orientation, stripeDark) {
     const idx = point - 1;
-    const value = state.position.points[idx];
+    const value = boardPosition.points[idx];
     const side = value > 0 ? "white" : value < 0 ? "black" : "empty";
     const count = Math.abs(value);
     const pointEl = document.createElement("button");
@@ -705,13 +717,13 @@ function renderBoard() {
 
   const barCounts = document.createElement("div");
   barCounts.className = "bar-counts";
-  barCounts.textContent = `W ${state.position.bar_white} / B ${state.position.bar_black}`;
+  barCounts.textContent = `W ${boardPosition.bar_white} / B ${boardPosition.bar_black}`;
   bar.appendChild(barCounts);
 
   const barStack = document.createElement("div");
   barStack.className = "bar-stack";
 
-  const whiteVisible = Math.min(state.position.bar_white, 2);
+  const whiteVisible = Math.min(boardPosition.bar_white, 2);
   for (let i = 0; i < whiteVisible; i += 1) {
     const checker = document.createElement("span");
     checker.className = "checker white";
@@ -725,14 +737,14 @@ function renderBoard() {
     }
     barStack.appendChild(checker);
   }
-  if (state.position.bar_white > 2) {
+  if (boardPosition.bar_white > 2) {
     const extra = document.createElement("span");
     extra.className = "checker-count";
-    extra.textContent = `+${state.position.bar_white - 2}`;
+    extra.textContent = `+${boardPosition.bar_white - 2}`;
     barStack.appendChild(extra);
   }
 
-  const blackVisible = Math.min(state.position.bar_black, 2);
+  const blackVisible = Math.min(boardPosition.bar_black, 2);
   for (let i = 0; i < blackVisible; i += 1) {
     const checker = document.createElement("span");
     checker.className = "checker black";
@@ -746,10 +758,10 @@ function renderBoard() {
     }
     barStack.appendChild(checker);
   }
-  if (state.position.bar_black > 2) {
+  if (boardPosition.bar_black > 2) {
     const extra = document.createElement("span");
     extra.className = "checker-count";
-    extra.textContent = `+${state.position.bar_black - 2}`;
+    extra.textContent = `+${boardPosition.bar_black - 2}`;
     barStack.appendChild(extra);
   }
   bar.appendChild(barStack);
@@ -776,11 +788,11 @@ function renderBoard() {
   off.innerHTML = `
     <div class="off-tray${state.lastMoveHighlight?.offWhiteActive || state.activeStepHighlight?.to === 0 ? " move-target" : ""}">
       <div class="off-title">White Off</div>
-      <div class="off-stack">${renderOffCheckers("white", state.position.off_white)}</div>
+      <div class="off-stack">${renderOffCheckers("white", boardPosition.off_white)}</div>
     </div>
     <div class="off-tray${state.lastMoveHighlight?.offBlackActive || state.activeStepHighlight?.to === 25 ? " move-target" : ""}">
       <div class="off-title">Black Off</div>
-      <div class="off-stack">${renderOffCheckers("black", state.position.off_black)}</div>
+      <div class="off-stack">${renderOffCheckers("black", boardPosition.off_black)}</div>
     </div>
   `;
   el.offTrays.innerHTML = "";
