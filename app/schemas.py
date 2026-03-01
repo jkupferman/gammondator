@@ -146,3 +146,35 @@ class TrainingLeakItem(BaseModel):
 
 class TrainingLeaksResponse(BaseModel):
     leaks: list[TrainingLeakItem]
+
+
+class SessionCreateRequest(BaseModel):
+    initial_position: Position
+
+
+class SessionStateResponse(BaseModel):
+    session_id: int
+    status: str
+    move_count: int
+    current_position: Position
+
+
+class SessionPlayTurnRequest(BaseModel):
+    played_move: Move
+    next_dice: tuple[int, int]
+    record_training: bool = True
+
+    @field_validator("next_dice")
+    @classmethod
+    def validate_next_dice(cls, value: tuple[int, int]) -> tuple[int, int]:
+        d1, d2 = value
+        if not (1 <= d1 <= 6 and 1 <= d2 <= 6):
+            raise ValueError("next_dice must be between 1 and 6")
+        return value
+
+
+class SessionPlayTurnResponse(BaseModel):
+    session_id: int
+    move_count: int
+    analysis: AnalyzeMoveResponse
+    current_position: Position

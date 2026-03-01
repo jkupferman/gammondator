@@ -328,3 +328,23 @@ def choose_ai_move(request: ChooseAIMoveRequest) -> ChooseAIMoveResponse:
     )
     analyzed = analyze_move(pseudo_request)
     return ChooseAIMoveResponse(selected_move=analyzed.best_move, top_moves=analyzed.top_moves)
+
+
+def apply_move_to_position(
+    position: Position,
+    move: Move,
+    next_dice: tuple[int, int],
+    next_turn: Side | None = None,
+) -> Position:
+    state = _apply_move(position, move)
+    resulting_turn = next_turn or ("black" if position.turn == "white" else "white")
+    return Position(
+        points=state.points,
+        bar_white=state.bar_white,
+        bar_black=state.bar_black,
+        off_white=state.off_white,
+        off_black=state.off_black,
+        turn=resulting_turn,
+        cube_value=position.cube_value,
+        dice=next_dice,
+    )

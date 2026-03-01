@@ -23,6 +23,9 @@ Server runs at `http://127.0.0.1:8000`.
 
 - `GET /health`
 - `GET /analyzer`
+- `POST /sessions`
+- `GET /sessions/{session_id}`
+- `POST /sessions/{session_id}/play-turn`
 - `POST /analyze-move`
 - `POST /choose-ai-move`
 - `POST /legal-moves`
@@ -91,6 +94,24 @@ Request all legal plays for the current turn:
 curl -X POST 'http://127.0.0.1:8000/legal-moves' \
   -H 'Content-Type: application/json' \
   -d '{ "position": { ...same position payload... } }'
+```
+
+## Session Gameplay Loop
+
+Create a session with an initial position:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/sessions' \
+  -H 'Content-Type: application/json' \
+  -d '{ "initial_position": { ...position payload... } }'
+```
+
+Play a turn in that session (rate move, advance board, set next dice):
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/sessions/1/play-turn' \
+  -H 'Content-Type: application/json' \
+  -d '{ "played_move": { ... }, "next_dice": [3,2], "record_training": true }'
 ```
 
 Choose an AI move directly from `position + dice` (no client candidate list needed):

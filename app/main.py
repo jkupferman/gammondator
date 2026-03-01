@@ -2,8 +2,10 @@ import os
 
 from fastapi import FastAPI, HTTPException
 
+from app.analysis import apply_move_to_position
 from app.backends import BackendUnavailableError, load_backend
 from app.movegen import generate_legal_moves
+from app.session_store import SessionStore
 from app.schemas import (
     AnalyzePositionRequest,
     AnalyzePositionResponse,
@@ -17,6 +19,10 @@ from app.schemas import (
     LegalMovesResponse,
     RatePlayedMoveRequest,
     RatePlayedMoveRecordedResponse,
+    SessionCreateRequest,
+    SessionPlayTurnRequest,
+    SessionPlayTurnResponse,
+    SessionStateResponse,
     TrainingMistakesResponse,
     TrainingLeaksResponse,
     TrainingSummaryResponse,
@@ -26,6 +32,7 @@ from app.training_store import TrainingStore
 app = FastAPI(title="Gammondator API", version="0.1.0")
 runtime = load_backend()
 training_store = TrainingStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
+session_store = SessionStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
 
 
 @app.get("/health")
@@ -39,6 +46,31 @@ def analyzer_info() -> AnalyzerInfoResponse:
         backend=runtime.backend.name,
         fallback_active=runtime.fallback_active,
         details=runtime.details,
+    )
+
+
+@app.post("/sessions", response_model=SessionStateResponse)
+def create_session_endpoint(payload: SessionCreateRequest) -> SessionStateResponse:
+    created = session_store.create_session(payload.initial_position)
+    return SessionStateResponse(
+        session_id=int(created["session_id"]),
+        status=str(created["status"]),
+        move_count=int(created["move_count"]),
+        current_position=created["current_position"],
+    )
+
+
+@app.get("/sessions/{session_id}", response_model=SessionStateResponse)
+def get_session_endpoint(session_id: int) -> SessionStateResponse:
+    state = session_store.get_session(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+
+    return SessionStateResponse(
+        session_id=int(state["session_id"]),
+        status=str(state["status"]),
+        move_count=int(state["move_count"]),
+        current_position=state["current_position"],
     )
 
 
@@ -179,6 +211,47 @@ def analyze_position_endpoint(payload: AnalyzePositionRequest) -> AnalyzePositio
             best_move=analyzed.best_move,
             top_moves=analyzed.top_moves,
             legal_move_count=len(legal_moves),
+        )
+    except BackendUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/sessions/{session_id}/play-turn", response_model=SessionPlayTurnResponse)
+def play_session_turn_endpoint(
+    session_id: int,
+    payload: SessionPlayTurnRequest,
+) -> SessionPlayTurnResponse:
+    state = session_store.get_session(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+
+    current_position = state["current_position"]
+
+    try:
+        analysis = _rate_played_move(
+            RatePlayedMoveRequest(position=current_position, played_move=payload.played_move)
+        )
+        if payload.record_training:
+            training_store.record_review(current_position, analysis)
+
+        next_position = apply_move_to_position(
+            position=current_position,
+            move=payload.played_move,
+            next_dice=payload.next_dice,
+        )
+        advanced = session_store.apply_turn(
+            session_id=session_id,
+            previous_position=current_position,
+            new_position=next_position,
+            analysis=analysis,
+        )
+        return SessionPlayTurnResponse(
+            session_id=int(advanced["session_id"]),
+            move_count=int(advanced["move_count"]),
+            analysis=analysis,
+            current_position=advanced["current_position"],
         )
     except BackendUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

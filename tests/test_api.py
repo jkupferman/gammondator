@@ -55,6 +55,46 @@ def test_health() -> None:
     assert response.json() == {"status": "ok", "backend": "heuristic"}
 
 
+def test_session_lifecycle_and_play_turn() -> None:
+    create_response = client.post(
+        "/sessions",
+        json={"initial_position": SAMPLE_PAYLOAD["position"]},
+    )
+    assert create_response.status_code == 200
+    created = create_response.json()
+    session_id = created["session_id"]
+    assert created["move_count"] == 0
+    assert created["current_position"]["turn"] == "white"
+
+    get_response = client.get(f"/sessions/{session_id}")
+    assert get_response.status_code == 200
+    state = get_response.json()
+    assert state["session_id"] == session_id
+    assert state["move_count"] == 0
+
+    play_response = client.post(
+        f"/sessions/{session_id}/play-turn",
+        json={
+            "played_move": {
+                "notation": "24/18 8/7",
+                "steps": [
+                    {"from_point": 24, "to_point": 18},
+                    {"from_point": 8, "to_point": 7},
+                ],
+            },
+            "next_dice": [3, 2],
+            "record_training": True,
+        },
+    )
+    assert play_response.status_code == 200
+    played = play_response.json()
+    assert played["session_id"] == session_id
+    assert played["move_count"] == 1
+    assert played["analysis"]["played_move"]["notation"] == "24/18 8/7"
+    assert played["current_position"]["turn"] == "black"
+    assert played["current_position"]["dice"] == [3, 2]
+
+
 def test_analyze_move_returns_ranked_feedback() -> None:
     response = client.post("/analyze-move", json=SAMPLE_PAYLOAD)
     assert response.status_code == 200

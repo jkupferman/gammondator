@@ -29,6 +29,9 @@ Gammondator solves this by running in a live game loop:
 - Endpoints:
   - `GET /health`
   - `GET /analyzer`
+  - `POST /sessions`
+  - `GET /sessions/{session_id}`
+  - `POST /sessions/{session_id}/play-turn`
   - `POST /analyze-move`
   - `POST /choose-ai-move`
   - `POST /legal-moves`
