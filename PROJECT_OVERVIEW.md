@@ -29,6 +29,11 @@ Gammondator solves this by running in a live game loop:
 - Endpoints:
   - `GET /health`
   - `GET /analyzer`
+  - `POST /analysis-jobs`
+  - `GET /analysis-jobs`
+  - `GET /analysis-jobs/{job_id}`
+  - `POST /analysis-jobs/{job_id}/run`
+  - `POST /analysis-jobs/run-next`
   - `POST /sessions`
   - `GET /sessions/{session_id}`
   - `POST /sessions/{session_id}/play-turn`
@@ -60,6 +65,7 @@ Gammondator solves this by running in a live game loop:
 - Leak categorization summary to show recurring strategic/tactical mistake patterns.
 - Drill mode endpoints to replay high-equity-loss mistakes and track answer accuracy.
 - Profile-scoped sessions and training history via `profile_id`.
+- Deferred analysis job queue for asynchronous/deeper evaluation workflows.
 - GNU Backgammon bridge contract support with fallback to heuristic backend.
 - Real GNU Backgammon bridge script (`scripts/gnubg_bridge_real.py`) for engine equities.
 - GNUbg quality controls: eval depth selection, timeout, and persistent equity cache.

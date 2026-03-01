@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.analysis import apply_move_to_position
+from app.analysis_jobs import AnalysisJobStore
 from app.backends import BackendUnavailableError, load_backend
 from app.cube import evaluate_cube_decision
 from app.movegen import generate_legal_moves, is_legal_move, legal_move_signatures, move_signature
@@ -17,6 +18,9 @@ from app.schemas import (
     AnalyzeMoveRequest,
     AnalyzeMoveResponse,
     AnalyzerInfoResponse,
+    AnalysisJobCreateRequest,
+    AnalysisJobListResponse,
+    AnalysisJobResponse,
     ChooseAIMoveRequest,
     ChooseAIMoveFromPositionRequest,
     ChooseAIMoveResponse,
@@ -50,6 +54,7 @@ app = FastAPI(title="Gammondator API", version="0.1.0")
 runtime = load_backend()
 training_store = TrainingStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
 session_store = SessionStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
+analysis_store = AnalysisJobStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
 
@@ -71,6 +76,106 @@ def analyzer_info() -> AnalyzerInfoResponse:
         fallback_active=runtime.fallback_active,
         details=runtime.details,
     )
+
+
+def _job_to_response(job: dict[str, object]) -> AnalysisJobResponse:
+    result_payload = job.get("result")
+    result = AnalyzeMoveResponse.model_validate(result_payload) if isinstance(result_payload, dict) else None
+    return AnalysisJobResponse(
+        job_id=int(job["job_id"]),
+        profile_id=str(job["profile_id"]),
+        status=str(job["status"]),
+        created_at=str(job["created_at"]),
+        updated_at=str(job["updated_at"]),
+        error=str(job["error"]) if job.get("error") else None,
+        result=result,
+    )
+
+
+def _run_analysis_job(job_id: int) -> AnalysisJobResponse:
+    job = analysis_store.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"analysis job {job_id} not found")
+    if str(job["status"]) == "completed":
+        return _job_to_response(job)
+
+    analysis_store.mark_running(job_id)
+    job = analysis_store.get_job(job_id)
+    assert job is not None
+    request_payload = AnalysisJobCreateRequest.model_validate(job["request"])
+
+    try:
+        if request_payload.candidate_moves:
+            candidate_moves = request_payload.candidate_moves
+            _validate_candidate_moves(request_payload.position, candidate_moves)
+            played_move = request_payload.played_move or candidate_moves[0]
+            if not is_legal_move(request_payload.position, played_move):
+                raise ValueError("played_move is not legal for this position/dice")
+            analyze_request = AnalyzeMoveRequest(
+                position=request_payload.position,
+                played_move=played_move,
+                candidate_moves=candidate_moves,
+            )
+        else:
+            legal_moves = generate_legal_moves(request_payload.position)
+            if not legal_moves:
+                raise ValueError("no legal moves available")
+            played_move = request_payload.played_move or legal_moves[0]
+            if not is_legal_move(request_payload.position, played_move):
+                raise ValueError("played_move is not legal for this position/dice")
+            analyze_request = AnalyzeMoveRequest(
+                position=request_payload.position,
+                played_move=played_move,
+                candidate_moves=legal_moves,
+            )
+
+        result = runtime.analyze_move(analyze_request)
+        analysis_store.mark_completed(job_id, result.model_dump_json())
+    except (BackendUnavailableError, ValueError) as exc:
+        analysis_store.mark_failed(job_id, str(exc))
+
+    final_job = analysis_store.get_job(job_id)
+    assert final_job is not None
+    return _job_to_response(final_job)
+
+
+@app.post("/analysis-jobs", response_model=AnalysisJobResponse)
+def create_analysis_job_endpoint(payload: AnalysisJobCreateRequest) -> AnalysisJobResponse:
+    job_id = analysis_store.create_job(payload)
+    job = analysis_store.get_job(job_id)
+    assert job is not None
+    return _job_to_response(job)
+
+
+@app.get("/analysis-jobs", response_model=AnalysisJobListResponse)
+def list_analysis_jobs_endpoint(
+    profile_id: str = "default",
+    status: str | None = None,
+    limit: int = 50,
+) -> AnalysisJobListResponse:
+    jobs = analysis_store.list_jobs(profile_id=profile_id, status=status, limit=limit)
+    return AnalysisJobListResponse(jobs=[_job_to_response(job) for job in jobs])
+
+
+@app.get("/analysis-jobs/{job_id}", response_model=AnalysisJobResponse)
+def get_analysis_job_endpoint(job_id: int) -> AnalysisJobResponse:
+    job = analysis_store.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"analysis job {job_id} not found")
+    return _job_to_response(job)
+
+
+@app.post("/analysis-jobs/{job_id}/run", response_model=AnalysisJobResponse)
+def run_analysis_job_endpoint(job_id: int) -> AnalysisJobResponse:
+    return _run_analysis_job(job_id)
+
+
+@app.post("/analysis-jobs/run-next", response_model=AnalysisJobResponse)
+def run_next_analysis_job_endpoint(profile_id: str | None = None) -> AnalysisJobResponse:
+    next_job = analysis_store.next_pending_job(profile_id=profile_id)
+    if next_job is None:
+        raise HTTPException(status_code=404, detail="no pending analysis jobs")
+    return _run_analysis_job(int(next_job["job_id"]))
 
 
 @app.post("/sessions", response_model=SessionStateResponse)

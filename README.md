@@ -23,6 +23,11 @@ Server runs at `http://127.0.0.1:8000`.
 
 - `GET /health`
 - `GET /analyzer`
+- `POST /analysis-jobs`
+- `GET /analysis-jobs`
+- `GET /analysis-jobs/{job_id}`
+- `POST /analysis-jobs/{job_id}/run`
+- `POST /analysis-jobs/run-next`
 - `POST /sessions`
 - `GET /sessions/{session_id}`
 - `POST /sessions/{session_id}/play-turn`
@@ -204,6 +209,30 @@ Cube decision training:
 curl -X POST 'http://127.0.0.1:8000/cube/decision' \
   -H 'Content-Type: application/json' \
   -d '{ "position": { ... }, "action": "nodouble" }'
+```
+
+## Deferred Analysis Jobs
+
+Queue an analysis job:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/analysis-jobs' \
+  -H 'Content-Type: application/json' \
+  -d '{ "profile_id": "default", "position": { ... } }'
+```
+
+Run queued jobs:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/analysis-jobs/1/run'
+curl -X POST 'http://127.0.0.1:8000/analysis-jobs/run-next?profile_id=default'
+```
+
+Inspect jobs:
+
+```bash
+curl 'http://127.0.0.1:8000/analysis-jobs?profile_id=default'
+curl 'http://127.0.0.1:8000/analysis-jobs/1'
 ```
 
 ## Web Board MVP

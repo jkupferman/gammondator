@@ -395,3 +395,38 @@ def test_cube_decision_endpoint() -> None:
     assert data["recommended_action"] in {"double", "nodouble", "take", "pass"}
     assert data["quality"] in {"excellent", "good", "inaccuracy", "mistake", "blunder"}
     assert isinstance(data["why"], list)
+
+
+def test_analysis_job_queue_flow() -> None:
+    create = client.post(
+        "/analysis-jobs",
+        json={
+            "profile_id": "default",
+            "position": SAMPLE_PAYLOAD["position"],
+        },
+    )
+    assert create.status_code == 200
+    created = create.json()
+    job_id = created["job_id"]
+    assert created["status"] == "pending"
+
+    run = client.post(f"/analysis-jobs/{job_id}/run")
+    assert run.status_code == 200
+    ran = run.json()
+    assert ran["job_id"] == job_id
+    assert ran["status"] in {"completed", "failed"}
+    if ran["status"] == "completed":
+        assert ran["result"] is not None
+
+    fetch = client.get(f"/analysis-jobs/{job_id}")
+    assert fetch.status_code == 200
+    fetched = fetch.json()
+    assert fetched["job_id"] == job_id
+
+
+def test_analysis_job_run_next() -> None:
+    client.post("/analysis-jobs", json={"profile_id": "default", "position": SAMPLE_PAYLOAD["position"]})
+    run_next = client.post("/analysis-jobs/run-next?profile_id=default")
+    assert run_next.status_code == 200
+    payload = run_next.json()
+    assert payload["status"] in {"completed", "failed"}

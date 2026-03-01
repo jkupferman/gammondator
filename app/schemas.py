@@ -290,3 +290,24 @@ class CubeDecisionResponse(BaseModel):
     quality: Literal["excellent", "good", "inaccuracy", "mistake", "blunder"]
     delta: float
     why: list[str]
+
+
+class AnalysisJobCreateRequest(BaseModel):
+    position: Position
+    profile_id: str = "default"
+    played_move: Move | None = None
+    candidate_moves: list[Move] | None = None
+
+
+class AnalysisJobResponse(BaseModel):
+    job_id: int
+    profile_id: str
+    status: Literal["pending", "running", "completed", "failed"]
+    created_at: str
+    updated_at: str
+    error: str | None = None
+    result: AnalyzeMoveResponse | None = None
+
+
+class AnalysisJobListResponse(BaseModel):
+    jobs: list[AnalysisJobResponse]
