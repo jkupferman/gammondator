@@ -86,6 +86,18 @@ function parseNotationSteps(notation) {
     .filter((token) => token.includes("/"));
 }
 
+function humanizeNotation(notation) {
+  const steps = parseNotationSteps(notation);
+  if (!steps.length) return String(notation || "");
+  const humanized = steps.map((step) => {
+    const [rawFrom = "", rawTo = ""] = step.split("/");
+    const from = rawFrom === "0" || rawFrom === "25" ? "bar" : rawFrom;
+    const to = rawTo === "0" || rawTo === "25" ? "off" : rawTo;
+    return `${from}/${to}`;
+  });
+  return humanized.join(" ");
+}
+
 function stepEndpointRank(value) {
   const token = String(value || "").toLowerCase();
   if (token === "bar") return -1;
@@ -229,8 +241,10 @@ function formatMoveAnalysisSummary(analysis) {
   }[played.quality] || "Move reviewed.";
   const loss = Number(played.delta_vs_best || 0);
   const isOptimal = loss <= 0.001;
-  const playedDisplay = isOptimal ? canonicalizeNotation(played.notation) : played.notation;
-  const bestDisplay = isOptimal ? canonicalizeNotation(best.notation) : best.notation;
+  const playedHuman = humanizeNotation(played.notation);
+  const bestHuman = humanizeNotation(best.notation);
+  const playedDisplay = isOptimal ? canonicalizeNotation(playedHuman) : playedHuman;
+  const bestDisplay = isOptimal ? canonicalizeNotation(bestHuman) : bestHuman;
   const headline = isOptimal ? "Optimal move." : qualityTitle;
   const currentWinPct = estimateWinPctFromEquity(played.equity);
   const winDelta = state.lastHumanWinPct === null ? null : currentWinPct - state.lastHumanWinPct;
