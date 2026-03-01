@@ -127,3 +127,34 @@ def test_choose_ai_move_from_position_when_no_legal_moves() -> None:
     response = client.post("/choose-ai-move-from-position", json=payload)
     assert response.status_code == 400
     assert response.json()["detail"] == "no legal moves available"
+
+
+def test_rate_played_move_from_position() -> None:
+    payload = {
+        "position": SAMPLE_PAYLOAD["position"],
+        "played_move": {
+            "notation": "24/18 8/7",
+            "steps": [
+                {"from_point": 24, "to_point": 18},
+                {"from_point": 8, "to_point": 7},
+            ],
+        },
+    }
+    response = client.post("/rate-played-move", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "best_move" in data
+    assert "played_move" in data
+
+
+def test_rate_played_move_rejects_illegal_play() -> None:
+    payload = {
+        "position": SAMPLE_PAYLOAD["position"],
+        "played_move": {
+            "notation": "24/24",
+            "steps": [{"from_point": 24, "to_point": 24}],
+        },
+    }
+    response = client.post("/rate-played-move", json=payload)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "played_move is not legal for this position/dice"

@@ -33,11 +33,13 @@ Gammondator solves this by running in a live game loop:
   - `POST /choose-ai-move`
   - `POST /legal-moves`
   - `POST /choose-ai-move-from-position`
+  - `POST /rate-played-move`
 - Strict input/output schemas for position and move analysis.
 - Heuristic baseline analyzer with move quality classification.
 - Explanation layer based on structural/racing features.
 - Backend abstraction with configurable analyzer backend.
 - Server-side legal move generation from position + dice (including bar entry and bearing off rules).
+- Server-side played-move rating from position + move (no client candidate list required).
 - GNU Backgammon bridge contract support with fallback to heuristic backend.
 - Local bridge stub script for integration testing.
 - Automated tests for API + backend behavior.

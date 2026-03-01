@@ -27,6 +27,7 @@ Server runs at `http://127.0.0.1:8000`.
 - `POST /choose-ai-move`
 - `POST /legal-moves`
 - `POST /choose-ai-move-from-position`
+- `POST /rate-played-move`
 
 ## Example Request
 
@@ -93,6 +94,14 @@ Choose an AI move directly from `position + dice` (no client candidate list need
 curl -X POST 'http://127.0.0.1:8000/choose-ai-move-from-position' \
   -H 'Content-Type: application/json' \
   -d '{ "position": { ...same position payload... } }'
+```
+
+Rate a human move directly from `position + played_move` (server generates legal candidates):
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/rate-played-move' \
+  -H 'Content-Type: application/json' \
+  -d '{ "position": { ... }, "played_move": { ... } }'
 ```
 
 ## Testing

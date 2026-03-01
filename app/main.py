@@ -11,6 +11,7 @@ from app.schemas import (
     ChooseAIMoveResponse,
     LegalMovesRequest,
     LegalMovesResponse,
+    RatePlayedMoveRequest,
 )
 
 app = FastAPI(title="Gammondator API", version="0.1.0")
@@ -83,6 +84,31 @@ def choose_ai_move_from_position_endpoint(
             )
         )
         return ChooseAIMoveResponse(selected_move=analyzed.best_move, top_moves=analyzed.top_moves)
+    except BackendUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/rate-played-move", response_model=AnalyzeMoveResponse)
+def rate_played_move_endpoint(payload: RatePlayedMoveRequest) -> AnalyzeMoveResponse:
+    try:
+        legal_moves = generate_legal_moves(payload.position)
+        if not legal_moves:
+            raise HTTPException(status_code=400, detail="no legal moves available")
+
+        legal_keys = {tuple((s.from_point, s.to_point) for s in m.steps) for m in legal_moves}
+        played_key = tuple((s.from_point, s.to_point) for s in payload.played_move.steps)
+        if played_key not in legal_keys:
+            raise HTTPException(status_code=400, detail="played_move is not legal for this position/dice")
+
+        return runtime.backend.analyze_move(
+            AnalyzeMoveRequest(
+                position=payload.position,
+                played_move=payload.played_move,
+                candidate_moves=legal_moves,
+            )
+        )
     except BackendUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:

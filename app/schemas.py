@@ -102,3 +102,8 @@ class LegalMovesResponse(BaseModel):
 
 class ChooseAIMoveFromPositionRequest(BaseModel):
     position: Position
+
+
+class RatePlayedMoveRequest(BaseModel):
+    position: Position
+    played_move: Move
