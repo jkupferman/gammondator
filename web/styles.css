@@ -79,6 +79,13 @@ button.valid-target-btn {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+#animationStatus {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2f1f12;
 }
 
 .board-grid {

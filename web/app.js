@@ -36,6 +36,7 @@ const el = {
   boardGrid: document.getElementById("boardGrid"),
   offTrays: document.getElementById("offTrays"),
   turnLabel: document.getElementById("turnLabel"),
+  animationStatus: document.getElementById("animationStatus"),
   barOffLabel: document.getElementById("barOffLabel"),
   cubeLabel: document.getElementById("cubeLabel"),
   fromBarBtn: document.getElementById("fromBarBtn"),
@@ -65,6 +66,10 @@ const el = {
 
 function notify(text, isError = false) {
   el.feedback.textContent = isError ? `Error: ${text}` : text;
+}
+
+function renderAnimationStatus() {
+  el.animationStatus.textContent = state.animating ? "Animating..." : "Idle";
 }
 
 function savePreferences() {
@@ -138,6 +143,7 @@ function resetAnimationState() {
   state.animationSeq += 1;
   state.animating = false;
   clearStepHighlight();
+  renderAnimationStatus();
 }
 
 function setLastReplay(startPosition, steps, finalPosition) {
@@ -222,6 +228,7 @@ async function animateMoveReplay(startPosition, steps, finalPosition) {
   state.animating = true;
   clearStepHighlight();
   clearMoveHighlight(false);
+  renderAnimationStatus();
   refreshButtons();
   renderMoveBuilder();
 
@@ -253,6 +260,7 @@ async function animateMoveReplay(startPosition, steps, finalPosition) {
   clearStepHighlight();
   state.position = finalPosition;
   state.animating = false;
+  renderAnimationStatus();
   refreshButtons();
   renderBoard();
 }
@@ -551,8 +559,10 @@ function renderBoard() {
   if (!state.position) {
     el.boardGrid.innerHTML = "";
     el.offTrays.innerHTML = "";
+    renderAnimationStatus();
     return;
   }
+  renderAnimationStatus();
 
   el.turnLabel.textContent = `Turn: ${state.position.turn}`;
   el.barOffLabel.textContent = `Bar W/B: ${state.position.bar_white}/${state.position.bar_black} | Off W/B: ${state.position.off_white}/${state.position.off_black}`;
