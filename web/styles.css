@@ -52,6 +52,28 @@ body {
   margin-bottom: 8px;
 }
 
+.advanced-controls {
+  margin-bottom: 8px;
+}
+
+.advanced-controls summary {
+  cursor: pointer;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.advanced-controls[open] summary {
+  margin-bottom: 10px;
+}
+
+.advanced-controls input,
+.advanced-controls select,
+.advanced-controls label,
+.advanced-controls small {
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
 button, input {
   padding: 8px 10px;
   border-radius: 8px;

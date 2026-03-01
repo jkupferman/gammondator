@@ -130,6 +130,23 @@ function currentProfileId() {
   return value || "default";
 }
 
+function rollOpeningSequence() {
+  let playerDie = 1;
+  let aiDie = 1;
+  while (playerDie === aiDie) {
+    playerDie = Math.floor(Math.random() * 6) + 1;
+    aiDie = Math.floor(Math.random() * 6) + 1;
+  }
+  const playerStarts = playerDie > aiDie;
+  return {
+    playerDie,
+    aiDie,
+    playerStarts,
+    turn: playerStarts ? "white" : "black",
+    dice: playerStarts ? [playerDie, aiDie] : [aiDie, playerDie],
+  };
+}
+
 function setSessionStatusLabel(status, moveCount) {
   if (!state.sessionId) {
     el.sessionStatus.textContent = "No session";
@@ -1019,15 +1036,16 @@ function onPointClick(point) {
 
 async function newSession() {
   try {
+    const opening = rollOpeningSequence();
     const position = {
       points: [-2, 0, 0, 0, 0, 5, 0, 3, 0, 0, 0, -5, 5, 0, 0, 0, -3, 0, -5, 0, 0, 0, 0, 2],
       bar_white: 0,
       bar_black: 0,
       off_white: 0,
       off_black: 0,
-      turn: "white",
+      turn: opening.turn,
       cube_value: 1,
-      dice: currentDice(),
+      dice: opening.dice,
     };
     const created = await api("/sessions", {
       method: "POST",
@@ -1049,8 +1067,15 @@ async function newSession() {
     renderMoveBuilder();
     renderMoveLog();
     renderTurnReplayPicker();
-    notify("Session created.");
+    el.die1.value = String(created.current_position.dice[0]);
+    el.die2.value = String(created.current_position.dice[1]);
     await refreshLegalMoves(true);
+    if (opening.playerStarts) {
+      notify(`Opening roll You ${opening.playerDie} vs AI ${opening.aiDie}. You start.`);
+    } else {
+      await aiTurn(false);
+      notify(`Opening roll You ${opening.playerDie} vs AI ${opening.aiDie}. AI started.`);
+    }
     await loadTrainingSummary();
     await loadAnalysisJobs();
     await loadSessionList();

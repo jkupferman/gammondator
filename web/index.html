@@ -16,22 +16,29 @@
 
     <section class="panel controls">
       <div class="row">
-        <label>Profile:</label>
-        <input id="profileId" type="text" value="default" />
-        <label>Anim ms:</label>
-        <input id="animationMs" type="number" min="120" max="900" step="20" value="320" />
-        <label>Dice:</label>
-        <input id="die1" type="number" min="1" max="6" value="6" />
-        <input id="die2" type="number" min="1" max="6" value="1" />
         <button id="newSessionBtn">New Session</button>
+        <button id="refreshSessionsBtn">Refresh Sessions</button>
+        <select id="sessionPicker"></select>
+        <button id="resumeSessionBtn">Resume</button>
+        <button id="loadDrillBtn">Load Drill</button>
+        <label><input id="autoAiToggle" type="checkbox" /> Auto AI Reply</label>
       </div>
       <div class="row">
         <button id="loadLegalBtn" disabled>Load Legal Moves</button>
         <button id="aiTurnBtn" disabled>AI Turn</button>
         <button id="aiSuggestBtn" disabled>AI Suggest</button>
         <button id="rollBtn" disabled>Roll</button>
-        <label><input id="autoAiToggle" type="checkbox" /> Auto AI Reply</label>
         <button id="sessionReportBtn" disabled>Session Report</button>
+        <button id="turnTimelineBtn" disabled>Turn Timeline</button>
+        <button id="downloadTimelineBtn" disabled>Download Timeline</button>
+        <button id="closeSessionBtn" disabled>Close Session</button>
+      </div>
+      <details class="advanced-controls">
+        <summary>Advanced Controls</summary>
+        <label>Profile:</label>
+        <input id="profileId" type="text" value="default" />
+        <label>Anim ms:</label>
+        <input id="animationMs" type="number" min="120" max="900" step="20" value="320" />
         <label>Timeline Limit:</label>
         <input id="timelineLimit" type="number" min="20" max="1000" step="10" value="300" />
         <select id="turnActorFilter">
@@ -39,13 +46,13 @@
           <option value="human">Your Turns</option>
           <option value="ai">AI Turns</option>
         </select>
-        <button id="turnTimelineBtn" disabled>Turn Timeline</button>
-        <button id="downloadTimelineBtn" disabled>Download Timeline</button>
-        <button id="closeSessionBtn" disabled>Close Session</button>
-        <button id="refreshSessionsBtn">Refresh Sessions</button>
-        <select id="sessionPicker"></select>
-        <button id="resumeSessionBtn">Resume</button>
-        <button id="loadDrillBtn">Load Drill</button>
+        <label>Dice:</label>
+        <input id="die1" type="number" min="1" max="6" value="6" readonly />
+        <input id="die2" type="number" min="1" max="6" value="1" readonly />
+        <small>Opening roll is automatic on New Session.</small>
+      </details>
+      <div class="row">
+        <small>New Session auto-rolls opening dice and auto-plays AI if AI starts.</small>
       </div>
       <div class="row"><strong id="sessionStatus">No session</strong></div>
     </section>
