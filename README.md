@@ -251,6 +251,7 @@ The web UI supports:
 - session report and training summary panels
 - cube trainer decision checker panel
 - drill mode load/answer flow
+- analysis queue create/run-next controls and job list
 
 ## Testing
 

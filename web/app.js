@@ -34,6 +34,9 @@ const el = {
   cubeAction: document.getElementById("cubeAction"),
   cubeCheckBtn: document.getElementById("cubeCheckBtn"),
   cubeFeedback: document.getElementById("cubeFeedback"),
+  queueAnalysisBtn: document.getElementById("queueAnalysisBtn"),
+  runNextAnalysisBtn: document.getElementById("runNextAnalysisBtn"),
+  analysisJobs: document.getElementById("analysisJobs"),
   drillStatus: document.getElementById("drillStatus"),
   drillAnswer: document.getElementById("drillAnswer"),
   submitDrillBtn: document.getElementById("submitDrillBtn"),
@@ -128,6 +131,7 @@ function refreshButtons() {
   el.sessionReportBtn.disabled = !active;
   el.closeSessionBtn.disabled = !active;
   el.cubeCheckBtn.disabled = !active;
+  el.queueAnalysisBtn.disabled = !active;
 }
 
 async function loadTrainingSummary() {
@@ -140,6 +144,15 @@ async function loadTrainingSummary() {
     el.trainingSummary.textContent = `${JSON.stringify(summary, null, 2)}\n\nLeaks:\n${JSON.stringify(leaks, null, 2)}\n\nDrills:\n${JSON.stringify(drillSummary, null, 2)}`;
   } catch (err) {
     el.trainingSummary.textContent = `Unable to load training summary: ${err.message}`;
+  }
+}
+
+async function loadAnalysisJobs() {
+  try {
+    const jobs = await api(`/analysis-jobs?profile_id=${encodeURIComponent(currentProfileId())}&limit=8`);
+    el.analysisJobs.textContent = JSON.stringify(jobs, null, 2);
+  } catch (err) {
+    el.analysisJobs.textContent = `Unable to load jobs: ${err.message}`;
   }
 }
 
@@ -183,6 +196,7 @@ async function newSession() {
     renderLegalMoves();
     notify("Session created.");
     await loadTrainingSummary();
+    await loadAnalysisJobs();
   } catch (err) {
     notify(err.message, true);
   }
@@ -222,6 +236,7 @@ async function submitMove() {
     renderLegalMoves();
     notify(JSON.stringify(played.analysis, null, 2));
     await loadTrainingSummary();
+    await loadAnalysisJobs();
   } catch (err) {
     notify(err.message, true);
   }
@@ -272,6 +287,7 @@ async function closeSession() {
     renderMoveBuilder();
     renderLegalMoves();
     el.cubeFeedback.textContent = "No cube decision checked yet.";
+    await loadAnalysisJobs();
   } catch (err) {
     notify(err.message, true);
   }
@@ -394,6 +410,36 @@ async function submitDrillAttempt() {
   }
 }
 
+async function queueCurrentPositionAnalysis() {
+  if (!state.position) return;
+  try {
+    const created = await api("/analysis-jobs", {
+      method: "POST",
+      body: JSON.stringify({
+        profile_id: currentProfileId(),
+        position: state.position,
+      }),
+    });
+    notify(`Queued analysis job #${created.job_id}.`);
+    await loadAnalysisJobs();
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
+async function runNextAnalysisJob() {
+  try {
+    const ran = await api(
+      `/analysis-jobs/run-next?profile_id=${encodeURIComponent(currentProfileId())}`,
+      { method: "POST" },
+    );
+    notify(`Ran analysis job #${ran.job_id} (${ran.status}).`);
+    await loadAnalysisJobs();
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
 el.newSessionBtn.addEventListener("click", newSession);
 el.loadLegalBtn.addEventListener("click", loadLegalMoves);
 el.submitMoveBtn.addEventListener("click", submitMove);
@@ -407,9 +453,12 @@ el.closeSessionBtn.addEventListener("click", closeSession);
 el.cubeCheckBtn.addEventListener("click", checkCubeDecision);
 el.loadDrillBtn.addEventListener("click", loadDrill);
 el.submitDrillBtn.addEventListener("click", submitDrillAttempt);
+el.queueAnalysisBtn.addEventListener("click", queueCurrentPositionAnalysis);
+el.runNextAnalysisBtn.addEventListener("click", runNextAnalysisJob);
 
 refreshButtons();
 renderBoard();
 renderMoveBuilder();
 renderDrillStatus();
 loadTrainingSummary();
+loadAnalysisJobs();
