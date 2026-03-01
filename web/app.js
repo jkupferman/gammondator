@@ -30,6 +30,9 @@ const el = {
   legalMoves: document.getElementById("legalMoves"),
   feedback: document.getElementById("feedback"),
   trainingSummary: document.getElementById("trainingSummary"),
+  cubeAction: document.getElementById("cubeAction"),
+  cubeCheckBtn: document.getElementById("cubeCheckBtn"),
+  cubeFeedback: document.getElementById("cubeFeedback"),
   drillStatus: document.getElementById("drillStatus"),
   drillAnswer: document.getElementById("drillAnswer"),
   submitDrillBtn: document.getElementById("submitDrillBtn"),
@@ -118,6 +121,7 @@ function refreshButtons() {
   el.rollBtn.disabled = !active;
   el.sessionReportBtn.disabled = !active;
   el.closeSessionBtn.disabled = !active;
+  el.cubeCheckBtn.disabled = !active;
 }
 
 async function loadTrainingSummary() {
@@ -261,6 +265,23 @@ async function closeSession() {
     refreshButtons();
     renderMoveBuilder();
     renderLegalMoves();
+    el.cubeFeedback.textContent = "No cube decision checked yet.";
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
+async function checkCubeDecision() {
+  if (!state.position) return;
+  try {
+    const result = await api("/cube/decision", {
+      method: "POST",
+      body: JSON.stringify({
+        position: state.position,
+        action: el.cubeAction.value,
+      }),
+    });
+    el.cubeFeedback.textContent = JSON.stringify(result, null, 2);
   } catch (err) {
     notify(err.message, true);
   }
@@ -374,6 +395,7 @@ el.toOffBtn.addEventListener("click", chooseToOff);
 el.clearMoveBtn.addEventListener("click", clearMove);
 el.sessionReportBtn.addEventListener("click", loadSessionReport);
 el.closeSessionBtn.addEventListener("click", closeSession);
+el.cubeCheckBtn.addEventListener("click", checkCubeDecision);
 el.loadDrillBtn.addEventListener("click", loadDrill);
 el.submitDrillBtn.addEventListener("click", submitDrillAttempt);
 

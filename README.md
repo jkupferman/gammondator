@@ -219,6 +219,7 @@ The web UI supports:
 - AI turn button
 - roll button and session close action
 - session report and training summary panels
+- cube trainer decision checker panel
 - drill mode load/answer flow
 
 ## Testing
