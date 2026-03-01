@@ -503,7 +503,6 @@ function shouldAutoSubmitBuiltMove() {
   }
 
   let exactMatch = false;
-  let hasContinuation = false;
   for (const move of state.legalMoves) {
     if (!Array.isArray(move.steps)) continue;
     let prefixMatches = true;
@@ -518,11 +517,9 @@ function shouldAutoSubmitBuiltMove() {
     if (!prefixMatches) continue;
     if (move.steps.length === state.moveSteps.length) {
       exactMatch = true;
-    } else if (move.steps.length > state.moveSteps.length) {
-      hasContinuation = true;
     }
   }
-  return exactMatch && !hasContinuation;
+  return exactMatch;
 }
 
 function onCheckerDragStart(event) {
