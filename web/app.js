@@ -30,6 +30,7 @@ const el = {
   sessionReportBtn: document.getElementById("sessionReportBtn"),
   turnTimelineBtn: document.getElementById("turnTimelineBtn"),
   downloadTimelineBtn: document.getElementById("downloadTimelineBtn"),
+  timelineLimit: document.getElementById("timelineLimit"),
   closeSessionBtn: document.getElementById("closeSessionBtn"),
   refreshSessionsBtn: document.getElementById("refreshSessionsBtn"),
   sessionPicker: document.getElementById("sessionPicker"),
@@ -79,6 +80,7 @@ function savePreferences() {
   window.localStorage.setItem("gammondator.profileId", el.profileId.value || "default");
   window.localStorage.setItem("gammondator.autoAi", el.autoAiToggle.checked ? "1" : "0");
   window.localStorage.setItem("gammondator.animationMs", String(el.animationMs.value || "320"));
+  window.localStorage.setItem("gammondator.timelineLimit", String(el.timelineLimit.value || "300"));
 }
 
 function loadPreferences() {
@@ -91,6 +93,10 @@ function loadPreferences() {
   const animationMs = window.localStorage.getItem("gammondator.animationMs");
   if (animationMs) {
     el.animationMs.value = animationMs;
+  }
+  const timelineLimit = window.localStorage.getItem("gammondator.timelineLimit");
+  if (timelineLimit) {
+    el.timelineLimit.value = timelineLimit;
   }
 }
 
@@ -132,6 +138,12 @@ function animationStepMs() {
   const parsed = Number(el.animationMs.value);
   if (!Number.isFinite(parsed)) return 320;
   return Math.max(120, Math.min(900, parsed));
+}
+
+function currentTimelineLimit() {
+  const parsed = Number(el.timelineLimit.value);
+  if (!Number.isFinite(parsed)) return 300;
+  return Math.max(20, Math.min(1000, Math.round(parsed)));
 }
 
 function clonePosition(position) {
@@ -1231,7 +1243,7 @@ async function loadSessionReport() {
 async function loadTurnTimeline() {
   if (!state.sessionId) return;
   try {
-    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=300`);
+    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=${currentTimelineLimit()}`);
     if (!response.ok) {
       const body = await response.text();
       throw new Error(body || `HTTP ${response.status}`);
@@ -1246,7 +1258,7 @@ async function loadTurnTimeline() {
 async function downloadTurnTimeline() {
   if (!state.sessionId) return;
   try {
-    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=300`);
+    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=${currentTimelineLimit()}`);
     if (!response.ok) {
       const body = await response.text();
       throw new Error(body || `HTTP ${response.status}`);
@@ -1430,6 +1442,7 @@ el.profileId.addEventListener("change", async () => {
 });
 el.autoAiToggle.addEventListener("change", savePreferences);
 el.animationMs.addEventListener("change", savePreferences);
+el.timelineLimit.addEventListener("change", savePreferences);
 el.toOffBtn.addEventListener("dragover", onOffDragOver);
 el.toOffBtn.addEventListener("drop", onOffDrop);
 el.toOffBtn.addEventListener("touchend", (event) => {
