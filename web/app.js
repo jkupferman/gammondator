@@ -516,6 +516,7 @@ function exactLegalMoveMatch() {
   if (!state.legalMoves.length || state.moveSteps.length === 0) {
     return null;
   }
+  // Prefer strict step-order match first.
   for (const move of state.legalMoves) {
     if (!Array.isArray(move.steps)) continue;
     if (move.steps.length !== state.moveSteps.length) continue;
@@ -529,6 +530,22 @@ function exactLegalMoveMatch() {
       }
     }
     if (prefixMatches) {
+      return move;
+    }
+  }
+  // Fallback: same step multiset in a different order.
+  const playedKey = state.moveSteps
+    .map((step) => `${Number(step.from_point)}>${Number(step.to_point)}`)
+    .sort()
+    .join("|");
+  for (const move of state.legalMoves) {
+    if (!Array.isArray(move.steps)) continue;
+    if (move.steps.length !== state.moveSteps.length) continue;
+    const legalKey = move.steps
+      .map((step) => `${Number(step.from_point)}>${Number(step.to_point)}`)
+      .sort()
+      .join("|");
+    if (legalKey === playedKey) {
       return move;
     }
   }
@@ -546,12 +563,8 @@ function maybeAutoSubmitBuiltMove() {
   }));
   renderMoveBuilder();
   renderBoard();
-  window.setTimeout(() => {
-    if (!state.position || state.animating || state.submittingMove) return;
-    if (state.position.turn !== HUMAN_SIDE) return;
-    if (!exactLegalMoveMatch()) return;
-    submitMove();
-  }, 0);
+  if (state.position.turn !== HUMAN_SIDE) return;
+  submitMove();
 }
 
 function onCheckerDragStart(event) {
