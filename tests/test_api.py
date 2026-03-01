@@ -17,10 +17,10 @@ SAMPLE_PAYLOAD = {
         "dice": [6, 1]
     },
     "played_move": {
-        "notation": "24/18 13/7",
+        "notation": "24/18 8/7",
         "steps": [
             {"from_point": 24, "to_point": 18},
-            {"from_point": 13, "to_point": 7}
+            {"from_point": 8, "to_point": 7}
         ]
     },
     "candidate_moves": [
@@ -32,10 +32,10 @@ SAMPLE_PAYLOAD = {
             ]
         },
         {
-            "notation": "24/18 13/7",
+            "notation": "24/18 8/7",
             "steps": [
                 {"from_point": 24, "to_point": 18},
-                {"from_point": 13, "to_point": 7}
+                {"from_point": 8, "to_point": 7}
             ]
         },
         {
@@ -53,6 +53,12 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "backend": "heuristic"}
+
+
+def test_web_index() -> None:
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "text/html" in response.headers.get("content-type", "")
 
 
 def test_session_lifecycle_and_play_turn() -> None:
@@ -94,6 +100,13 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert played["current_position"]["turn"] == "black"
     assert played["current_position"]["dice"] == [3, 2]
 
+    report_response = client.get(f"/sessions/{session_id}/report?top_n=3")
+    assert report_response.status_code == 200
+    report = report_response.json()
+    assert report["session_id"] == session_id
+    assert report["total_turns"] >= 1
+    assert isinstance(report["top_mistakes"], list)
+
 
 def test_session_ai_turn() -> None:
     create_response = client.post(
@@ -129,6 +142,21 @@ def test_analyze_move_returns_ranked_feedback() -> None:
     assert isinstance(data["played_move"]["why"], list)
 
 
+def test_analyze_move_rejects_illegal_candidate() -> None:
+    payload = {
+        **SAMPLE_PAYLOAD,
+        "candidate_moves": [
+            {
+                "notation": "24/24",
+                "steps": [{"from_point": 24, "to_point": 24}],
+            }
+        ],
+    }
+    response = client.post("/analyze-move", json=payload)
+    assert response.status_code == 400
+    assert "candidate move is not legal" in response.json()["detail"]
+
+
 def test_analyzer_info() -> None:
     response = client.get("/analyzer")
     assert response.status_code == 200
@@ -149,6 +177,21 @@ def test_choose_ai_move() -> None:
     assert "selected_move" in data
     assert len(data["top_moves"]) == 3
     assert data["selected_move"]["delta_vs_best"] == 0
+
+
+def test_choose_ai_move_rejects_illegal_candidate() -> None:
+    payload = {
+        "position": SAMPLE_PAYLOAD["position"],
+        "candidate_moves": [
+            {
+                "notation": "24/24",
+                "steps": [{"from_point": 24, "to_point": 24}],
+            }
+        ],
+    }
+    response = client.post("/choose-ai-move", json=payload)
+    assert response.status_code == 400
+    assert "candidate move is not legal" in response.json()["detail"]
 
 
 def test_legal_moves_endpoint_returns_moves() -> None:
@@ -267,3 +310,13 @@ def test_rate_played_move_and_record_and_training_views() -> None:
     assert isinstance(leaks, list)
     assert len(leaks) >= 1
     assert "leak_category" in leaks[0]
+
+
+def test_cube_decision_endpoint() -> None:
+    payload = {"position": SAMPLE_PAYLOAD["position"], "action": "nodouble"}
+    response = client.post("/cube/decision", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["recommended_action"] in {"double", "nodouble", "take", "pass"}
+    assert data["quality"] in {"excellent", "good", "inaccuracy", "mistake", "blunder"}
+    assert isinstance(data["why"], list)

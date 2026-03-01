@@ -27,6 +27,7 @@ Server runs at `http://127.0.0.1:8000`.
 - `GET /sessions/{session_id}`
 - `POST /sessions/{session_id}/play-turn`
 - `POST /sessions/{session_id}/ai-turn`
+- `GET /sessions/{session_id}/report`
 - `POST /analyze-move`
 - `POST /choose-ai-move`
 - `POST /legal-moves`
@@ -37,6 +38,7 @@ Server runs at `http://127.0.0.1:8000`.
 - `GET /training/summary`
 - `GET /training/mistakes`
 - `GET /training/leaks`
+- `POST /cube/decision`
 
 ## Example Request
 
@@ -55,10 +57,10 @@ curl -X POST 'http://127.0.0.1:8000/analyze-move' \
       "dice": [6,1]
     },
     "played_move": {
-      "notation": "24/18 13/7",
+      "notation": "24/18 8/7",
       "steps": [
         {"from_point": 24, "to_point": 18},
-        {"from_point": 13, "to_point": 7}
+        {"from_point": 8, "to_point": 7}
       ]
     },
     "candidate_moves": [
@@ -70,10 +72,10 @@ curl -X POST 'http://127.0.0.1:8000/analyze-move' \
         ]
       },
       {
-        "notation": "24/18 13/7",
+        "notation": "24/18 8/7",
         "steps": [
           {"from_point": 24, "to_point": 18},
-          {"from_point": 13, "to_point": 7}
+          {"from_point": 8, "to_point": 7}
         ]
       },
       {
@@ -123,6 +125,12 @@ curl -X POST 'http://127.0.0.1:8000/sessions/1/ai-turn' \
   -d '{ "next_dice": [4,2], "apply_move": true }'
 ```
 
+Get a post-game style session report:
+
+```bash
+curl 'http://127.0.0.1:8000/sessions/1/report?top_n=5'
+```
+
 Choose an AI move directly from `position + dice` (no client candidate list needed):
 
 ```bash
@@ -163,6 +171,27 @@ curl 'http://127.0.0.1:8000/training/mistakes?limit=20'
 curl 'http://127.0.0.1:8000/training/leaks'
 ```
 
+Cube decision training:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/cube/decision' \
+  -H 'Content-Type: application/json' \
+  -d '{ "position": { ... }, "action": "nodouble" }'
+```
+
+## Web Board MVP
+
+Run the API and open the root URL:
+
+- [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+The web UI supports:
+- session creation
+- legal move loading
+- click-based move builder + submit
+- AI turn button
+- session report and training summary panels
+
 ## Testing
 
 ```bash
@@ -199,6 +228,10 @@ Optional:
 
 ```bash
 export GAMMONDATOR_FALLBACK_TO_HEURISTIC=0
+export GAMMONDATOR_GNUBG_EVAL_MODE=2ply     # 0ply, 1ply, or 2ply
+export GAMMONDATOR_GNUBG_TIMEOUT=15
+export GAMMONDATOR_GNUBG_CACHE=1
+export GAMMONDATOR_GNUBG_CACHE_DB='gammondator_gnubg_cache.db'
 ```
 
 Bridge contract:
@@ -231,6 +264,7 @@ Recorded training data is stored in a local SQLite database.
 export GAMMONDATOR_DB_PATH='/absolute/path/to/gammondator.db'
 ```
 
-## Next Step
+## Notes
 
-Replace the heuristic evaluator in `app/analysis.py` with an engine adapter (GNU Backgammon/XG-compatible bridge) while keeping the same response contract.
+- Endpoints that accept user-provided moves now enforce strict legality for the supplied `position + dice`.
+- GNUbg backend can automatically fall back to heuristic backend per request when enabled.

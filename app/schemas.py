@@ -199,3 +199,40 @@ class SessionAIMoveResponse(BaseModel):
     top_moves: list[MoveScore]
     move_count: int
     current_position: Position | None = None
+
+
+class SessionMistakeItem(BaseModel):
+    turn_id: int
+    created_at: str
+    turn: str
+    quality: str
+    equity_loss: float
+    played_notation: str
+    best_notation: str
+    why: list[str]
+
+
+class SessionReportResponse(BaseModel):
+    session_id: int
+    status: str
+    move_count: int
+    created_at: str
+    updated_at: str
+    total_turns: int
+    average_equity_loss: float
+    inaccuracies: int
+    mistakes: int
+    blunders: int
+    top_mistakes: list[SessionMistakeItem]
+
+
+class CubeDecisionRequest(BaseModel):
+    position: Position
+    action: Literal["double", "take", "pass", "nodouble"]
+
+
+class CubeDecisionResponse(BaseModel):
+    recommended_action: Literal["double", "take", "pass", "nodouble"]
+    quality: Literal["excellent", "good", "inaccuracy", "mistake", "blunder"]
+    delta: float
+    why: list[str]

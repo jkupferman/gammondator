@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gammondator Trainer</title>
+  <link rel="stylesheet" href="/web/styles.css" />
+</head>
+<body>
+  <div class="bg-pattern"></div>
+  <main class="app-shell">
+    <header class="topbar">
+      <h1>Gammondator</h1>
+      <p>Backgammon training board MVP</p>
+    </header>
+
+    <section class="panel controls">
+      <div class="row">
+        <label>Dice:</label>
+        <input id="die1" type="number" min="1" max="6" value="6" />
+        <input id="die2" type="number" min="1" max="6" value="1" />
+        <button id="newSessionBtn">New Session</button>
+      </div>
+      <div class="row">
+        <button id="loadLegalBtn" disabled>Load Legal Moves</button>
+        <button id="aiTurnBtn" disabled>AI Turn</button>
+        <button id="sessionReportBtn" disabled>Session Report</button>
+      </div>
+      <div class="row"><strong id="sessionStatus">No session</strong></div>
+    </section>
+
+    <section class="panel board-panel">
+      <div class="board-head">
+        <h2>Board</h2>
+        <span id="turnLabel">Turn: -</span>
+      </div>
+      <div class="board-grid" id="boardGrid"></div>
+      <div class="board-meta">
+        <span id="barOffLabel">Bar/Off: -</span>
+        <span id="cubeLabel">Cube: -</span>
+      </div>
+    </section>
+
+    <section class="panel move-builder">
+      <h2>Move Builder</h2>
+      <div class="row">
+        <button id="fromBarBtn" disabled>From Bar</button>
+        <button id="toOffBtn" disabled>To Off</button>
+        <button id="clearMoveBtn" disabled>Clear</button>
+      </div>
+      <p>Click a source point, then a destination point.</p>
+      <pre id="currentMove">No move selected</pre>
+      <button id="submitMoveBtn" disabled>Submit Move</button>
+    </section>
+
+    <section class="panel split">
+      <div>
+        <h2>Legal Moves</h2>
+        <ul id="legalMoves"></ul>
+      </div>
+      <div>
+        <h2>Feedback</h2>
+        <pre id="feedback">No feedback yet.</pre>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Training Summary</h2>
+      <pre id="trainingSummary">No training data loaded.</pre>
+    </section>
+  </main>
+
+  <script src="/web/app.js"></script>
+</body>
+</html>

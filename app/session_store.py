@@ -148,3 +148,74 @@ class SessionStore:
             "move_count": next_move_count,
             "current_position": new_position,
         }
+
+    def session_report(self, session_id: int, top_n: int = 5) -> dict[str, object]:
+        safe_limit = max(1, min(top_n, 20))
+        with self._connect() as conn:
+            session = conn.execute(
+                """
+                SELECT id, status, move_count, created_at, updated_at
+                FROM sessions
+                WHERE id = ?
+                """,
+                (session_id,),
+            ).fetchone()
+            if session is None:
+                raise ValueError(f"session {session_id} not found")
+
+            summary = conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_turns,
+                    COALESCE(AVG(equity_loss), 0.0) AS avg_equity_loss,
+                    SUM(CASE WHEN quality = 'inaccuracy' THEN 1 ELSE 0 END) AS inaccuracies,
+                    SUM(CASE WHEN quality = 'mistake' THEN 1 ELSE 0 END) AS mistakes,
+                    SUM(CASE WHEN quality = 'blunder' THEN 1 ELSE 0 END) AS blunders
+                FROM session_turns
+                WHERE session_id = ?
+                """,
+                (session_id,),
+            ).fetchone()
+
+            turns = conn.execute(
+                """
+                SELECT id, created_at, turn, played_notation, quality, equity_loss, analysis_json
+                FROM session_turns
+                WHERE session_id = ?
+                ORDER BY equity_loss DESC, created_at DESC
+                LIMIT ?
+                """,
+                (session_id, safe_limit),
+            ).fetchall()
+
+        top_mistakes: list[dict[str, object]] = []
+        for row in turns:
+            analysis_payload = json.loads(str(row["analysis_json"]))
+            played_move = analysis_payload.get("played_move", {})
+            best_move = analysis_payload.get("best_move", {})
+            top_mistakes.append(
+                {
+                    "turn_id": int(row["id"]),
+                    "created_at": str(row["created_at"]),
+                    "turn": str(row["turn"]),
+                    "quality": str(row["quality"]),
+                    "equity_loss": float(row["equity_loss"]),
+                    "played_notation": str(row["played_notation"]),
+                    "best_notation": str(best_move.get("notation", "")),
+                    "why": list(played_move.get("why", [])),
+                }
+            )
+
+        return {
+            "session_id": int(session["id"]),
+            "status": str(session["status"]),
+            "move_count": int(session["move_count"]),
+            "created_at": str(session["created_at"]),
+            "updated_at": str(session["updated_at"]),
+            "total_turns": int(summary["total_turns"] or 0),
+            "average_equity_loss": round(float(summary["avg_equity_loss"] or 0.0), 4),
+            "inaccuracies": int(summary["inaccuracies"] or 0),
+            "mistakes": int(summary["mistakes"] or 0),
+            "blunders": int(summary["blunders"] or 0),
+            "top_mistakes": top_mistakes,
+        }

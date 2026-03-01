@@ -195,6 +195,18 @@ def _sequence_to_move(steps: list[MoveStep]) -> Move:
     return Move(notation=notation, steps=steps)
 
 
+def move_signature(move: Move) -> tuple[tuple[int, int], ...]:
+    return tuple((step.from_point, step.to_point) for step in move.steps)
+
+
+def legal_move_signatures(position: Position) -> set[tuple[tuple[int, int], ...]]:
+    return {move_signature(move) for move in generate_legal_moves(position)}
+
+
+def is_legal_move(position: Position, move: Move) -> bool:
+    return move_signature(move) in legal_move_signatures(position)
+
+
 def generate_legal_moves(position: Position) -> list[Move]:
     if position.dice[0] == position.dice[1]:
         orders = [tuple([position.dice[0]] * 4)]

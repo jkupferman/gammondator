@@ -116,6 +116,15 @@ class BackendRuntime:
     configured: str
     fallback_active: bool
     details: str
+    fallback_backend: AnalyzerBackend | None = None
+
+    def analyze_move(self, request: AnalyzeMoveRequest) -> AnalyzeMoveResponse:
+        try:
+            return self.backend.analyze_move(request)
+        except BackendUnavailableError:
+            if self.fallback_backend is None:
+                raise
+            return self.fallback_backend.analyze_move(request)
 
 
 def load_backend() -> BackendRuntime:
@@ -129,11 +138,14 @@ def load_backend() -> BackendRuntime:
             configured=configured,
             fallback_active=False,
             details=backend.details(),
+            fallback_backend=None,
         )
 
     if configured == "gnubg":
         bridge_cmd = os.getenv("GAMMONDATOR_GNUBG_BRIDGE_CMD", "gnubg-bridge")
-        gnubg_backend = GnuBGBridgeBackend(bridge_cmd=bridge_cmd)
+        timeout_seconds = float(os.getenv("GAMMONDATOR_GNUBG_TIMEOUT", "15"))
+        gnubg_backend = GnuBGBridgeBackend(bridge_cmd=bridge_cmd, timeout_seconds=timeout_seconds)
+        heuristic_fallback = HeuristicBackend() if fallback_enabled else None
 
         try:
             gnubg_backend._validate_binary()
@@ -141,18 +153,22 @@ def load_backend() -> BackendRuntime:
                 backend=gnubg_backend,
                 configured=configured,
                 fallback_active=False,
-                details=gnubg_backend.details(),
+                details=f"{gnubg_backend.details()} timeout={timeout_seconds}s",
+                fallback_backend=heuristic_fallback,
             )
         except BackendUnavailableError as exc:
             if not fallback_enabled:
                 raise
 
-            fallback = HeuristicBackend()
             return BackendRuntime(
-                backend=fallback,
+                backend=heuristic_fallback or HeuristicBackend(),
                 configured=configured,
                 fallback_active=True,
-                details=f"{fallback.details()} Requested gnubg backend unavailable: {exc}",
+                details=(
+                    "Built-in heuristic evaluator. "
+                    f"Requested gnubg backend unavailable: {exc}"
+                ),
+                fallback_backend=None,
             )
 
     raise BackendUnavailableError(

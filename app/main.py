@@ -1,10 +1,14 @@
 import os
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.analysis import apply_move_to_position
 from app.backends import BackendUnavailableError, load_backend
-from app.movegen import generate_legal_moves
+from app.cube import evaluate_cube_decision
+from app.movegen import generate_legal_moves, is_legal_move, legal_move_signatures, move_signature
 from app.session_store import SessionStore
 from app.schemas import (
     AnalyzePositionRequest,
@@ -19,9 +23,12 @@ from app.schemas import (
     LegalMovesResponse,
     RatePlayedMoveRequest,
     RatePlayedMoveRecordedResponse,
+    CubeDecisionRequest,
+    CubeDecisionResponse,
     SessionCreateRequest,
     SessionAIMoveRequest,
     SessionAIMoveResponse,
+    SessionReportResponse,
     SessionPlayTurnRequest,
     SessionPlayTurnResponse,
     SessionStateResponse,
@@ -35,11 +42,18 @@ app = FastAPI(title="Gammondator API", version="0.1.0")
 runtime = load_backend()
 training_store = TrainingStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
 session_store = SessionStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "backend": runtime.backend.name}
+
+
+@app.get("/")
+def web_index() -> FileResponse:
+    return FileResponse(WEB_DIR / "index.html")
 
 
 @app.get("/analyzer", response_model=AnalyzerInfoResponse)
@@ -76,10 +90,22 @@ def get_session_endpoint(session_id: int) -> SessionStateResponse:
     )
 
 
+@app.get("/sessions/{session_id}/report", response_model=SessionReportResponse)
+def session_report_endpoint(session_id: int, top_n: int = 5) -> SessionReportResponse:
+    try:
+        report = session_store.session_report(session_id=session_id, top_n=top_n)
+        return SessionReportResponse.model_validate(report)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.post("/analyze-move", response_model=AnalyzeMoveResponse)
 def analyze_move_endpoint(payload: AnalyzeMoveRequest) -> AnalyzeMoveResponse:
     try:
-        return runtime.backend.analyze_move(payload)
+        _validate_candidate_moves(payload.position, payload.candidate_moves)
+        if not is_legal_move(payload.position, payload.played_move):
+            raise HTTPException(status_code=400, detail="played_move is not legal for this position/dice")
+        return runtime.analyze_move(payload)
     except BackendUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
@@ -89,7 +115,8 @@ def analyze_move_endpoint(payload: AnalyzeMoveRequest) -> AnalyzeMoveResponse:
 @app.post("/choose-ai-move", response_model=ChooseAIMoveResponse)
 def choose_ai_move_endpoint(payload: ChooseAIMoveRequest) -> ChooseAIMoveResponse:
     try:
-        analyzed = runtime.backend.analyze_move(
+        _validate_candidate_moves(payload.position, payload.candidate_moves)
+        analyzed = runtime.analyze_move(
             AnalyzeMoveRequest(
                 position=payload.position,
                 played_move=payload.candidate_moves[0],
@@ -129,12 +156,10 @@ def _rate_played_move(payload: RatePlayedMoveRequest) -> AnalyzeMoveResponse:
     if not legal_moves:
         raise HTTPException(status_code=400, detail="no legal moves available")
 
-    legal_keys = {tuple((s.from_point, s.to_point) for s in m.steps) for m in legal_moves}
-    played_key = tuple((s.from_point, s.to_point) for s in payload.played_move.steps)
-    if played_key not in legal_keys:
+    if move_signature(payload.played_move) not in legal_move_signatures(payload.position):
         raise HTTPException(status_code=400, detail="played_move is not legal for this position/dice")
 
-    return runtime.backend.analyze_move(
+    return runtime.analyze_move(
         AnalyzeMoveRequest(
             position=payload.position,
             played_move=payload.played_move,
@@ -148,7 +173,7 @@ def _analyze_position(payload: AnalyzePositionRequest) -> AnalyzeMoveResponse:
     if not legal_moves:
         raise HTTPException(status_code=400, detail="no legal moves available")
 
-    return runtime.backend.analyze_move(
+    return runtime.analyze_move(
         AnalyzeMoveRequest(
             position=payload.position,
             played_move=legal_moves[0],
@@ -202,6 +227,11 @@ def training_mistakes_endpoint(limit: int = 20) -> TrainingMistakesResponse:
 @app.get("/training/leaks", response_model=TrainingLeaksResponse)
 def training_leaks_endpoint() -> TrainingLeaksResponse:
     return TrainingLeaksResponse(leaks=training_store.leak_summary())
+
+
+@app.post("/cube/decision", response_model=CubeDecisionResponse)
+def cube_decision_endpoint(payload: CubeDecisionRequest) -> CubeDecisionResponse:
+    return evaluate_cube_decision(payload)
 
 
 @app.post("/analyze-position", response_model=AnalyzePositionResponse)
@@ -277,7 +307,7 @@ def play_session_ai_turn_endpoint(
         if not legal_moves:
             raise HTTPException(status_code=400, detail="no legal moves available")
 
-        analyzed = runtime.backend.analyze_move(
+        analyzed = runtime.analyze_move(
             AnalyzeMoveRequest(
                 position=current_position,
                 played_move=legal_moves[0],
@@ -297,7 +327,7 @@ def play_session_ai_turn_endpoint(
                 current_position=None,
             )
 
-        applied_analysis = runtime.backend.analyze_move(
+        applied_analysis = runtime.analyze_move(
             AnalyzeMoveRequest(
                 position=current_position,
                 played_move=selected,
@@ -326,3 +356,15 @@ def play_session_ai_turn_endpoint(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _validate_candidate_moves(position, candidate_moves) -> None:
+    legal_signatures = legal_move_signatures(position)
+    if not legal_signatures:
+        raise HTTPException(status_code=400, detail="no legal moves available")
+    for move in candidate_moves:
+        if move_signature(move) not in legal_signatures:
+            raise HTTPException(
+                status_code=400,
+                detail=f"candidate move is not legal for this position/dice: {move.notation}",
+            )

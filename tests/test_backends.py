@@ -5,7 +5,14 @@ import sys
 
 import pytest
 
-from app.backends import BackendUnavailableError, GnuBGBridgeBackend, load_backend
+from app.backends import (
+    AnalyzerBackend,
+    BackendRuntime,
+    BackendUnavailableError,
+    GnuBGBridgeBackend,
+    HeuristicBackend,
+    load_backend,
+)
 from app.schemas import AnalyzeMoveRequest
 
 
@@ -107,6 +114,25 @@ def test_load_backend_gnubg_without_fallback_raises(monkeypatch) -> None:
 
     with pytest.raises(BackendUnavailableError):
         load_backend()
+
+
+def test_runtime_fallback_on_primary_backend_error() -> None:
+    class FailingBackend(AnalyzerBackend):
+        name = "failing"
+
+        def analyze_move(self, request):  # noqa: ANN001
+            raise BackendUnavailableError("boom")
+
+    runtime = BackendRuntime(
+        backend=FailingBackend(),
+        configured="gnubg",
+        fallback_active=False,
+        details="test",
+        fallback_backend=HeuristicBackend(),
+    )
+
+    response = runtime.analyze_move(_sample_request())
+    assert response.best_move.delta_vs_best == 0
 
 
 @pytest.mark.skipif(

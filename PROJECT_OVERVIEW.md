@@ -33,6 +33,7 @@ Gammondator solves this by running in a live game loop:
   - `GET /sessions/{session_id}`
   - `POST /sessions/{session_id}/play-turn`
   - `POST /sessions/{session_id}/ai-turn`
+  - `GET /sessions/{session_id}/report`
   - `POST /analyze-move`
   - `POST /choose-ai-move`
   - `POST /legal-moves`
@@ -43,6 +44,7 @@ Gammondator solves this by running in a live game loop:
   - `GET /training/summary`
   - `GET /training/mistakes`
   - `GET /training/leaks`
+  - `POST /cube/decision`
 - Strict input/output schemas for position and move analysis.
 - Heuristic baseline analyzer with move quality classification.
 - Explanation layer based on structural/racing features.
@@ -53,7 +55,9 @@ Gammondator solves this by running in a live game loop:
 - Leak categorization summary to show recurring strategic/tactical mistake patterns.
 - GNU Backgammon bridge contract support with fallback to heuristic backend.
 - Real GNU Backgammon bridge script (`scripts/gnubg_bridge_real.py`) for engine equities.
+- GNUbg quality controls: eval depth selection, timeout, and persistent equity cache.
 - Local bridge stub script for integration testing.
+- Web board MVP served from backend root (`/`) with session gameplay controls.
 - Automated tests for API + backend behavior.
 
 ## Planned Features
@@ -102,11 +106,11 @@ Gammondator solves this by running in a live game loop:
   - GNUbg bridge backend (strong analysis path)
 - Stable response contract for front-end independence.
 
-### Frontend (Planned)
-- Interactive board UI for live play.
-- Move input and candidate list generation.
+### Frontend
+- Web board MVP for live play and feedback loop.
+- Move input, legal move list, and AI turn controls.
 - Inline feedback panel for move quality + explanation.
-- Review mode for mistakes and best lines.
+- Session report/training summary views.
 
 ### Data Model (Planned)
 - `games`
@@ -130,11 +134,11 @@ Gammondator solves this by running in a live game loop:
 - Favor deterministic behavior in MVP paths.
 
 ## Immediate Next Steps
-1. Build the first real GNUbg bridge process (replace stub behavior).
-2. Add a lightweight game session model and persistence.
-3. Scaffold a minimal web UI to play against AI and call analysis endpoints.
-4. Add post-game report endpoint summarizing mistakes by severity/category.
-5. Add cube-decision analysis path for match play.
+1. Replace heuristic cube mode with engine-backed cube decision analysis.
+2. Add rollout-backed evaluation mode in GNUbg bridge for deeper post-game review.
+3. Add user account/profile scoping for training history and sessions.
+4. Build drill-mode endpoints that resurface personal high-equity-loss positions.
+5. Expand frontend board UX (drag/drop, checker animations, mobile polish).
 
 ## Project Conventions
 - Branch naming: `codex/*`.
