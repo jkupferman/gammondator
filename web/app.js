@@ -61,6 +61,20 @@ function notify(text, isError = false) {
   el.feedback.textContent = isError ? `Error: ${text}` : text;
 }
 
+function savePreferences() {
+  window.localStorage.setItem("gammondator.profileId", el.profileId.value || "default");
+  window.localStorage.setItem("gammondator.autoAi", el.autoAiToggle.checked ? "1" : "0");
+}
+
+function loadPreferences() {
+  const profileId = window.localStorage.getItem("gammondator.profileId");
+  if (profileId) {
+    el.profileId.value = profileId;
+  }
+  const autoAi = window.localStorage.getItem("gammondator.autoAi");
+  el.autoAiToggle.checked = autoAi === "1";
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -1089,6 +1103,13 @@ el.queueAnalysisBtn.addEventListener("click", queueCurrentPositionAnalysis);
 el.runNextAnalysisBtn.addEventListener("click", runNextAnalysisJob);
 el.retryLatestJobBtn.addEventListener("click", retryLatestJob);
 el.cleanupJobsBtn.addEventListener("click", cleanupFinishedJobs);
+el.profileId.addEventListener("change", async () => {
+  savePreferences();
+  await loadTrainingSummary();
+  await loadAnalysisJobs();
+  await loadSessionList();
+});
+el.autoAiToggle.addEventListener("change", savePreferences);
 el.toOffBtn.addEventListener("dragover", onOffDragOver);
 el.toOffBtn.addEventListener("drop", onOffDrop);
 el.toOffBtn.addEventListener("touchend", (event) => {
@@ -1121,6 +1142,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 refreshButtons();
+loadPreferences();
 renderBoard();
 renderMoveBuilder();
 renderMoveLog();
