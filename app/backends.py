@@ -124,13 +124,18 @@ class BackendRuntime:
     fallback_active: bool
     details: str
     fallback_backend: AnalyzerBackend | None = None
+    primary_unavailable: bool = False
 
     def analyze_move(self, request: AnalyzeMoveRequest) -> AnalyzeMoveResponse:
+        if self.primary_unavailable and self.fallback_backend is not None:
+            return self.fallback_backend.analyze_move(request)
         try:
             return self.backend.analyze_move(request)
         except BackendUnavailableError:
             if self.fallback_backend is None:
                 raise
+            self.primary_unavailable = True
+            self.fallback_active = True
             return self.fallback_backend.analyze_move(request)
 
 

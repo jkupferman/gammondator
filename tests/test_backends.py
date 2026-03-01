@@ -136,6 +136,37 @@ def test_runtime_fallback_on_primary_backend_error() -> None:
     assert response.best_move.delta_vs_best == 0
 
 
+def test_runtime_fallback_short_circuits_after_first_primary_failure() -> None:
+    class FlakyBackend(AnalyzerBackend):
+        name = "flaky"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def analyze_move(self, request):  # noqa: ANN001
+            self.calls += 1
+            if self.calls == 1:
+                raise BackendUnavailableError("timeout")
+            raise AssertionError("primary backend should not be retried after failure")
+
+    flaky = FlakyBackend()
+    runtime = BackendRuntime(
+        backend=flaky,
+        configured="gnubg",
+        fallback_active=False,
+        details="test",
+        fallback_backend=HeuristicBackend(),
+    )
+
+    first = runtime.analyze_move(_sample_request())
+    second = runtime.analyze_move(_sample_request())
+    assert first.best_move.delta_vs_best == 0
+    assert second.best_move.delta_vs_best == 0
+    assert flaky.calls == 1
+    assert runtime.primary_unavailable is True
+    assert runtime.fallback_active is True
+
+
 def test_gnubg_bridge_timeout_is_mapped_to_backend_unavailable(monkeypatch) -> None:
     backend = GnuBGBridgeBackend(f"{sys.executable} scripts/gnubg_bridge_stub.py", timeout_seconds=0.1)
 
