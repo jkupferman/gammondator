@@ -165,11 +165,21 @@ button:disabled {
 }
 
 .point-number {
-  position: relative;
+  position: absolute;
   z-index: 2;
   font-size: 12px;
   font-weight: 800;
   color: #2f1f12;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.board-point.down .point-number {
+  top: 6px;
+}
+
+.board-point.up .point-number {
+  bottom: 6px;
 }
 
 .checker-stack {
@@ -181,10 +191,17 @@ button:disabled {
   gap: 2px;
   min-height: 106px;
   justify-content: flex-end;
+  padding-top: 20px;
 }
 
 .board-point.down .checker-stack {
   justify-content: flex-start;
+  padding-top: 24px;
+  padding-bottom: 6px;
+}
+
+.board-point.up .checker-stack {
+  padding-bottom: 24px;
 }
 
 .checker {
@@ -256,7 +273,6 @@ button:disabled {
 }
 
 .off-column {
-  min-height: 456px;
   display: grid;
   grid-template-rows: 1fr 1fr;
   gap: 8px;
@@ -288,7 +304,7 @@ button:disabled {
   align-items: center;
   gap: 3px;
   width: 100%;
-  min-height: 300px;
+  min-height: 0;
 }
 
 .off-empty {
