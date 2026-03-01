@@ -46,6 +46,7 @@ class SessionStore:
                     session_id INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
                     turn TEXT NOT NULL,
+                    actor TEXT NOT NULL DEFAULT 'human',
                     played_notation TEXT NOT NULL,
                     quality TEXT NOT NULL,
                     equity_loss REAL NOT NULL,
@@ -54,6 +55,11 @@ class SessionStore:
                 )
                 """
             )
+            turn_columns = {row[1] for row in conn.execute("PRAGMA table_info(session_turns)")}
+            if "actor" not in turn_columns:
+                conn.execute(
+                    "ALTER TABLE session_turns ADD COLUMN actor TEXT NOT NULL DEFAULT 'human'"
+                )
             conn.commit()
 
     def create_session(self, initial_position: Position, profile_id: str = "default") -> dict[str, object]:
@@ -146,6 +152,7 @@ class SessionStore:
         previous_position: Position,
         new_position: Position,
         analysis: AnalyzeMoveResponse,
+        actor: str = "human",
     ) -> dict[str, object]:
         now = datetime.now(tz=timezone.utc).isoformat()
 
@@ -176,16 +183,18 @@ class SessionStore:
                     session_id,
                     created_at,
                     turn,
+                    actor,
                     played_notation,
                     quality,
                     equity_loss,
                     analysis_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
                     now,
                     previous_position.turn,
+                    actor,
                     analysis.played_move.notation,
                     analysis.played_move.quality,
                     float(analysis.played_move.delta_vs_best),
@@ -199,6 +208,43 @@ class SessionStore:
             "move_count": next_move_count,
             "current_position": new_position,
         }
+
+    def list_turns(self, session_id: int, limit: int = 200) -> list[dict[str, object]]:
+        safe_limit = max(1, min(limit, 500))
+        with self._connect() as conn:
+            session = conn.execute("SELECT id FROM sessions WHERE id = ?", (session_id,)).fetchone()
+            if session is None:
+                raise ValueError(f"session {session_id} not found")
+            rows = conn.execute(
+                """
+                SELECT id, created_at, turn, actor, played_notation, quality, equity_loss, analysis_json
+                FROM session_turns
+                WHERE session_id = ?
+                ORDER BY id ASC
+                LIMIT ?
+                """,
+                (session_id, safe_limit),
+            ).fetchall()
+
+        turns: list[dict[str, object]] = []
+        for row in rows:
+            analysis_payload = json.loads(str(row["analysis_json"]))
+            played_move = analysis_payload.get("played_move", {})
+            best_move = analysis_payload.get("best_move", {})
+            turns.append(
+                {
+                    "turn_id": int(row["id"]),
+                    "created_at": str(row["created_at"]),
+                    "turn": str(row["turn"]),
+                    "actor": str(row["actor"]),
+                    "played_notation": str(row["played_notation"]),
+                    "quality": str(row["quality"]),
+                    "equity_loss": float(row["equity_loss"]),
+                    "best_notation": str(best_move.get("notation", "")),
+                    "why": list(played_move.get("why", [])),
+                }
+            )
+        return turns
 
     def set_position(self, session_id: int, position: Position) -> dict[str, object]:
         now = datetime.now(tz=timezone.utc).isoformat()

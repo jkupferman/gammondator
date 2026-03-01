@@ -269,6 +269,23 @@ class SessionReportResponse(BaseModel):
     top_mistakes: list[SessionMistakeItem]
 
 
+class SessionTurnItemResponse(BaseModel):
+    turn_id: int
+    created_at: str
+    turn: str
+    actor: Literal["human", "ai"]
+    played_notation: str
+    quality: str
+    equity_loss: float
+    best_notation: str
+    why: list[str]
+
+
+class SessionTurnListResponse(BaseModel):
+    session_id: int
+    turns: list[SessionTurnItemResponse]
+
+
 class SessionCloseResponse(BaseModel):
     session_id: int
     status: str

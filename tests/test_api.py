@@ -109,6 +109,14 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert report["total_turns"] >= 1
     assert isinstance(report["top_mistakes"], list)
 
+    turns_response = client.get(f"/sessions/{session_id}/turns")
+    assert turns_response.status_code == 200
+    turns_payload = turns_response.json()
+    assert turns_payload["session_id"] == session_id
+    assert len(turns_payload["turns"]) >= 1
+    assert turns_payload["turns"][0]["actor"] == "human"
+    assert "played_notation" in turns_payload["turns"][0]
+
     close_response = client.post(f"/sessions/{session_id}/close")
     assert close_response.status_code == 200
     assert close_response.json()["status"] == "completed"
@@ -150,6 +158,12 @@ def test_session_ai_turn() -> None:
     assert len(data["top_moves"]) > 0
     assert data["current_position"]["turn"] == "black"
     assert data["current_position"]["dice"] == [4, 2]
+
+    turns_response = client.get(f"/sessions/{session_id}/turns")
+    assert turns_response.status_code == 200
+    turns = turns_response.json()["turns"]
+    assert len(turns) >= 1
+    assert turns[-1]["actor"] == "ai"
 
 
 def test_session_roll_endpoint() -> None:

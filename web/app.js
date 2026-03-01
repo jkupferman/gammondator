@@ -877,6 +877,25 @@ function renderSessionPicker(sessions) {
   el.resumeSessionBtn.disabled = false;
 }
 
+async function loadSessionTurns(sessionId) {
+  const data = await api(`/sessions/${sessionId}/turns?limit=300`);
+  const turns = data.turns || [];
+  state.moveLog = turns.map((turn) => {
+    const actor = turn.actor === "ai" ? "AI" : "You";
+    const noteParts = [`${turn.quality} ${Number(turn.equity_loss).toFixed(3)}`];
+    if (turn.best_notation && turn.best_notation !== turn.played_notation) {
+      noteParts.push(`best:${turn.best_notation}`);
+    }
+    return {
+      actor,
+      notation: turn.played_notation,
+      dice: "",
+      note: noteParts.join(" "),
+    };
+  });
+  renderMoveLog();
+}
+
 async function loadSessionList() {
   try {
     const profile = encodeURIComponent(currentProfileId());
@@ -912,7 +931,7 @@ async function resumeSelectedSession() {
     refreshButtons();
     renderBoard();
     renderMoveBuilder();
-    renderMoveLog();
+    await loadSessionTurns(state.sessionId);
     await refreshLegalMoves(true);
     await loadTrainingSummary();
     await loadAnalysisJobs();

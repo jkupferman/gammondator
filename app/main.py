@@ -41,6 +41,8 @@ from app.schemas import (
     SessionCloseResponse,
     SessionRollResponse,
     SessionReportResponse,
+    SessionTurnListResponse,
+    SessionTurnItemResponse,
     SessionPlayTurnRequest,
     SessionPlayTurnResponse,
     SessionListResponse,
@@ -359,6 +361,18 @@ def session_report_endpoint(session_id: int, top_n: int = 5) -> SessionReportRes
     try:
         report = session_store.session_report(session_id=session_id, top_n=top_n)
         return SessionReportResponse.model_validate(report)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/sessions/{session_id}/turns", response_model=SessionTurnListResponse)
+def session_turns_endpoint(session_id: int, limit: int = 200) -> SessionTurnListResponse:
+    try:
+        turns = session_store.list_turns(session_id=session_id, limit=limit)
+        return SessionTurnListResponse(
+            session_id=session_id,
+            turns=[SessionTurnItemResponse.model_validate(turn) for turn in turns],
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -715,6 +729,7 @@ def play_session_turn_endpoint(
             previous_position=current_position,
             new_position=next_position,
             analysis=analysis,
+            actor="human",
         )
         return SessionPlayTurnResponse(
             session_id=int(advanced["session_id"]),
@@ -784,6 +799,7 @@ def play_session_ai_turn_endpoint(
             previous_position=current_position,
             new_position=next_position,
             analysis=applied_analysis,
+            actor="ai",
         )
         return SessionAIMoveResponse(
             session_id=session_id,
