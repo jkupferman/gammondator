@@ -555,12 +555,15 @@ function exactLegalMoveMatch() {
 function maybeAutoSubmitBuiltMove() {
   if (!state.position || state.animating || state.submittingMove) return;
   if (!state.legalMovesLoaded || state.selectedFrom !== null || state.moveSteps.length === 0) return;
+  const hasContinuation = getPrefixMatchingMoves().length > 0;
   const exactMatch = exactLegalMoveMatch();
-  if (!exactMatch) return;
-  state.moveSteps = exactMatch.steps.map((step) => ({
-    from_point: step.from_point,
-    to_point: step.to_point,
-  }));
+  if (!exactMatch && hasContinuation) return;
+  if (exactMatch) {
+    state.moveSteps = exactMatch.steps.map((step) => ({
+      from_point: step.from_point,
+      to_point: step.to_point,
+    }));
+  }
   renderMoveBuilder();
   renderBoard();
   if (state.position.turn !== HUMAN_SIDE) return;
