@@ -54,6 +54,7 @@ Gammondator solves this by running in a live game loop:
   - `GET /training/drills`
   - `POST /training/drills/attempt`
   - `GET /training/drills/summary`
+  - `GET /training/dashboard`
   - `POST /cube/decision`
 - Strict input/output schemas for position and move analysis.
 - Heuristic baseline analyzer with move quality classification.

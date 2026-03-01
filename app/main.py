@@ -46,6 +46,7 @@ from app.schemas import (
     TrainingDrillAttemptResponse,
     TrainingDrillsResponse,
     TrainingDrillSummaryResponse,
+    TrainingDashboardResponse,
     TrainingSummaryResponse,
 )
 from app.training_store import TrainingStore
@@ -415,6 +416,35 @@ def training_drill_attempt_endpoint(
 @app.get("/training/drills/summary", response_model=TrainingDrillSummaryResponse)
 def training_drill_summary_endpoint(profile_id: str = "default") -> TrainingDrillSummaryResponse:
     return TrainingDrillSummaryResponse.model_validate(training_store.drill_summary(profile_id=profile_id))
+
+
+@app.get("/training/dashboard", response_model=TrainingDashboardResponse)
+def training_dashboard_endpoint(profile_id: str = "default") -> TrainingDashboardResponse:
+    raw_summary = training_store.summary(profile_id=profile_id)
+    summary = TrainingSummaryResponse(
+        total_moves=raw_summary.total_moves,
+        average_equity_loss=raw_summary.average_equity_loss,
+        inaccuracies=raw_summary.inaccuracies,
+        mistakes=raw_summary.mistakes,
+        blunders=raw_summary.blunders,
+        last_recorded_at=raw_summary.last_recorded_at,
+    )
+    leaks = TrainingLeaksResponse(leaks=training_store.leak_summary(profile_id=profile_id))
+    drill_summary = TrainingDrillSummaryResponse.model_validate(
+        training_store.drill_summary(profile_id=profile_id)
+    )
+    jobs = AnalysisJobListResponse(
+        jobs=[
+            _job_to_response(job)
+            for job in analysis_store.list_jobs(profile_id=profile_id, status=None, limit=10)
+        ]
+    )
+    return TrainingDashboardResponse(
+        summary=summary,
+        leaks=leaks,
+        drill_summary=drill_summary,
+        recent_jobs=jobs,
+    )
 
 
 @app.post("/cube/decision", response_model=CubeDecisionResponse)

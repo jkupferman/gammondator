@@ -311,3 +311,10 @@ class AnalysisJobResponse(BaseModel):
 
 class AnalysisJobListResponse(BaseModel):
     jobs: list[AnalysisJobResponse]
+
+
+class TrainingDashboardResponse(BaseModel):
+    summary: TrainingSummaryResponse
+    leaks: TrainingLeaksResponse
+    drill_summary: TrainingDrillSummaryResponse
+    recent_jobs: AnalysisJobListResponse

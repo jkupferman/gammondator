@@ -430,3 +430,13 @@ def test_analysis_job_run_next() -> None:
     assert run_next.status_code == 200
     payload = run_next.json()
     assert payload["status"] in {"completed", "failed"}
+
+
+def test_training_dashboard_endpoint() -> None:
+    response = client.get("/training/dashboard?profile_id=default")
+    assert response.status_code == 200
+    data = response.json()
+    assert "summary" in data
+    assert "leaks" in data
+    assert "drill_summary" in data
+    assert "recent_jobs" in data
