@@ -2,6 +2,7 @@ const state = {
   sessionId: null,
   position: null,
   legalMoves: [],
+  legalMovesLoaded: false,
   moveSteps: [],
   selectedFrom: null,
   dragFrom: null,
@@ -466,6 +467,12 @@ function clearDragState() {
 
 function chooseSource(point, showErrors = true) {
   if (!state.position) return false;
+  if (!state.legalMovesLoaded) {
+    if (showErrors) {
+      notify("Loading legal moves for this turn...", true);
+    }
+    return false;
+  }
   if (!canChooseSource(point)) {
     if (showErrors) {
       notify("That checker is not legal for this step.", true);
@@ -622,10 +629,14 @@ function onOffDragOver(event) {
 async function refreshLegalMoves(silent = true) {
   if (!state.position) {
     state.legalMoves = [];
+    state.legalMovesLoaded = false;
     renderLegalMoves();
     renderBoard();
+    renderMoveBuilder();
     return;
   }
+  state.legalMovesLoaded = false;
+  renderMoveBuilder();
 
   try {
     const data = await api("/legal-moves", {
@@ -633,12 +644,16 @@ async function refreshLegalMoves(silent = true) {
       body: JSON.stringify({ position: state.position }),
     });
     state.legalMoves = data.moves;
+    state.legalMovesLoaded = true;
     renderLegalMoves();
     renderBoard();
+    renderMoveBuilder();
     if (!silent) {
       notify(`Loaded ${data.moves.length} legal moves.`);
     }
   } catch (err) {
+    state.legalMovesLoaded = false;
+    renderMoveBuilder();
     if (!silent) {
       notify(err.message, true);
     }
@@ -851,6 +866,7 @@ function renderMoveBuilder() {
   const validTargets = getValidTargetsForSelection();
   const offPoint = state.position ? (state.position.turn === "white" ? 0 : 25) : null;
   const humanTurn = Boolean(state.position && state.position.turn === HUMAN_SIDE);
+  const ready = state.legalMovesLoaded;
 
   if (state.moveSteps.length === 0) {
     el.currentMove.textContent = "No move selected";
@@ -860,9 +876,9 @@ function renderMoveBuilder() {
   }
   el.clearMoveBtn.disabled = state.moveSteps.length === 0;
   el.undoStepBtn.disabled = state.moveSteps.length === 0;
-  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating || !humanTurn;
-  el.fromBarBtn.disabled = !state.position || state.animating || !humanTurn;
-  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating || !humanTurn;
+  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating || !humanTurn || !ready;
+  el.fromBarBtn.disabled = !state.position || state.animating || !humanTurn || !ready;
+  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating || !humanTurn || !ready;
   el.clearMoveBtn.disabled = el.clearMoveBtn.disabled || state.animating;
   el.undoStepBtn.disabled = el.undoStepBtn.disabled || state.animating;
   el.replayMoveBtn.disabled = state.animating || !state.lastReplay;
@@ -1049,6 +1065,8 @@ async function resumeSelectedSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
+    state.legalMoves = [];
+    state.legalMovesLoaded = false;
     state.sessionTurns = [];
     state.lastReplay = null;
     resetAnimationState();
@@ -1101,6 +1119,7 @@ async function newSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.legalMoves = [];
+    state.legalMovesLoaded = false;
     state.moveLog = [];
     state.sessionTurns = [];
     state.lastReplay = null;
@@ -1148,6 +1167,8 @@ async function submitMove() {
     });
     state.moveSteps = [];
     state.selectedFrom = null;
+    state.legalMoves = [];
+    state.legalMovesLoaded = false;
     state.moveLog.push({
       actor: "You",
       notation,
@@ -1187,6 +1208,8 @@ async function aiTurn(showNotify = true) {
     const stepSummary = summarizeStepEvents(startingPosition, aiSteps);
     state.moveSteps = [];
     state.selectedFrom = null;
+    state.legalMoves = [];
+    state.legalMovesLoaded = false;
     state.moveLog.push({
       actor: "AI",
       notation: played.selected_play?.notation || played.selected_move.notation,
@@ -1260,6 +1283,7 @@ async function closeSession() {
     state.sessionId = null;
     state.position = null;
     state.legalMoves = [];
+    state.legalMovesLoaded = false;
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
@@ -1469,6 +1493,8 @@ async function loadDrill() {
     state.position = state.currentDrill.position;
     state.moveSteps = [];
     state.selectedFrom = null;
+    state.legalMoves = [];
+    state.legalMovesLoaded = false;
     state.moveLog = [];
     state.sessionTurns = [];
     state.lastReplay = null;
