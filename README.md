@@ -268,6 +268,7 @@ Run the API and open the root URL:
 The web UI supports:
 - session creation
 - profile selection (`profile_id`)
+- backgammon-style rendered board (points, bar, stacked checkers)
 - legal move loading
 - click-based move builder + submit
 - AI turn button

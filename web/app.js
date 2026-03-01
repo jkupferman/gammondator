@@ -70,10 +70,6 @@ function currentProfileId() {
   return value || "default";
 }
 
-function pointLabel(point) {
-  return `P${point}`;
-}
-
 function renderBoard() {
   if (!state.position) {
     el.boardGrid.innerHTML = "";
@@ -84,17 +80,82 @@ function renderBoard() {
   el.barOffLabel.textContent = `Bar W/B: ${state.position.bar_white}/${state.position.bar_black} | Off W/B: ${state.position.off_white}/${state.position.off_black}`;
   el.cubeLabel.textContent = `Cube: ${state.position.cube_value} | Dice: ${state.position.dice[0]}-${state.position.dice[1]}`;
 
-  el.boardGrid.innerHTML = "";
-  for (let point = 24; point >= 1; point -= 1) {
+  const topLeft = [13, 14, 15, 16, 17, 18];
+  const topRight = [19, 20, 21, 22, 23, 24];
+  const bottomLeft = [12, 11, 10, 9, 8, 7];
+  const bottomRight = [6, 5, 4, 3, 2, 1];
+
+  function buildPoint(point, orientation, stripeDark) {
     const idx = point - 1;
     const value = state.position.points[idx];
-    const text = value === 0 ? "empty" : value > 0 ? `W ${value}` : `B ${Math.abs(value)}`;
-    const btn = document.createElement("button");
-    btn.className = `point-btn${state.selectedFrom === point ? " selected" : ""}`;
-    btn.innerHTML = `<strong>${pointLabel(point)}</strong><br/>${text}`;
-    btn.addEventListener("click", () => onPointClick(point));
-    el.boardGrid.appendChild(btn);
+    const side = value > 0 ? "white" : value < 0 ? "black" : "empty";
+    const count = Math.abs(value);
+    const pointEl = document.createElement("button");
+    pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${state.selectedFrom === point ? " selected" : ""}`;
+    pointEl.addEventListener("click", () => onPointClick(point));
+
+    const num = document.createElement("span");
+    num.className = "point-number";
+    num.textContent = String(point);
+    pointEl.appendChild(num);
+
+    const stack = document.createElement("div");
+    stack.className = "checker-stack";
+    if (side !== "empty") {
+      const visible = Math.min(count, 5);
+      for (let i = 0; i < visible; i += 1) {
+        const checker = document.createElement("span");
+        checker.className = `checker ${side}`;
+        stack.appendChild(checker);
+      }
+      if (count > 5) {
+        const extra = document.createElement("span");
+        extra.className = "checker-count";
+        extra.textContent = `+${count - 5}`;
+        stack.appendChild(extra);
+      }
+    }
+    pointEl.appendChild(stack);
+    return pointEl;
   }
+
+  function buildHalf(points, orientation) {
+    const half = document.createElement("div");
+    half.className = "board-half";
+    points.forEach((point, i) => {
+      half.appendChild(buildPoint(point, orientation, i % 2 === 0));
+    });
+    return half;
+  }
+
+  const board = document.createElement("div");
+  board.className = "bg-board";
+
+  const topRow = document.createElement("div");
+  topRow.className = "board-row top";
+  topRow.appendChild(buildHalf(topLeft, "down"));
+
+  const bar = document.createElement("div");
+  bar.className = `board-bar${state.selectedFrom === 25 || state.selectedFrom === 0 ? " selected" : ""}`;
+  bar.innerHTML = `
+    <div class="bar-label">BAR</div>
+    <div class="bar-counts">W ${state.position.bar_white} / B ${state.position.bar_black}</div>
+  `;
+  topRow.appendChild(bar);
+
+  topRow.appendChild(buildHalf(topRight, "down"));
+
+  const bottomRow = document.createElement("div");
+  bottomRow.className = "board-row bottom";
+  bottomRow.appendChild(buildHalf(bottomLeft, "up"));
+  bottomRow.appendChild(document.createElement("div")).className = "board-bar-spacer";
+  bottomRow.appendChild(buildHalf(bottomRight, "up"));
+
+  board.appendChild(topRow);
+  board.appendChild(bottomRow);
+
+  el.boardGrid.innerHTML = "";
+  el.boardGrid.appendChild(board);
 }
 
 function renderMoveBuilder() {
