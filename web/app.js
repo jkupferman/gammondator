@@ -114,6 +114,15 @@ function currentProfileId() {
   return value || "default";
 }
 
+function setSessionStatusLabel(status, moveCount) {
+  if (!state.sessionId) {
+    el.sessionStatus.textContent = "No session";
+    return;
+  }
+  const count = Number.isFinite(moveCount) ? moveCount : 0;
+  el.sessionStatus.textContent = `Session #${state.sessionId} (${status}, moves: ${count})`;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -931,7 +940,7 @@ async function resumeSelectedSession() {
     state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
-    el.sessionStatus.textContent = `Session #${state.sessionId} (${session.status})`;
+    setSessionStatusLabel(session.status, session.move_count);
     refreshButtons();
     renderBoard();
     renderMoveBuilder();
@@ -979,7 +988,7 @@ async function newSession() {
     state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
-    el.sessionStatus.textContent = `Session #${state.sessionId} (${created.status})`;
+    setSessionStatusLabel(created.status, created.move_count);
     refreshButtons();
     renderBoard();
     renderMoveBuilder();
@@ -1025,6 +1034,7 @@ async function submitMove() {
     renderMoveLog();
     setLastReplay(startingPosition, playedSteps, played.current_position);
     await animateMoveReplay(startingPosition, playedSteps, played.current_position);
+    setSessionStatusLabel("active", played.move_count);
     setMoveHighlightFromSteps(playedSteps);
     const summaryText = formatMoveAnalysisSummary(played.analysis);
     notify(stepSummary.hits ? `${summaryText}\nHits: ${stepSummary.hits}` : summaryText);
@@ -1061,6 +1071,7 @@ async function aiTurn(showNotify = true) {
     renderMoveLog();
     setLastReplay(startingPosition, aiSteps, played.current_position);
     await animateMoveReplay(startingPosition, aiSteps, played.current_position);
+    setSessionStatusLabel("active", played.move_count);
     setMoveHighlightFromSteps(aiSteps);
     await refreshLegalMoves(true);
     if (showNotify) {
@@ -1128,7 +1139,7 @@ async function closeSession() {
     state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
-    el.sessionStatus.textContent = "No session";
+    setSessionStatusLabel("completed", 0);
     refreshButtons();
     renderBoard();
     renderMoveBuilder();
