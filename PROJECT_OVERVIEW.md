@@ -52,6 +52,7 @@ Gammondator solves this by running in a live game loop:
 - SQLite-backed training history for recorded move reviews and mistake reporting.
 - Leak categorization summary to show recurring strategic/tactical mistake patterns.
 - GNU Backgammon bridge contract support with fallback to heuristic backend.
+- Real GNU Backgammon bridge script (`scripts/gnubg_bridge_real.py`) for engine equities.
 - Local bridge stub script for integration testing.
 - Automated tests for API + backend behavior.
 

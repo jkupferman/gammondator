@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 
 import pytest
@@ -106,3 +107,15 @@ def test_load_backend_gnubg_without_fallback_raises(monkeypatch) -> None:
 
     with pytest.raises(BackendUnavailableError):
         load_backend()
+
+
+@pytest.mark.skipif(
+    not os.path.exists("/opt/local/bin/gnubg"),
+    reason="GNU Backgammon binary not available at /opt/local/bin/gnubg",
+)
+def test_real_gnubg_bridge_backend_contract() -> None:
+    backend = GnuBGBridgeBackend(f"{sys.executable} scripts/gnubg_bridge_real.py", timeout_seconds=30.0)
+    response = backend.analyze_move(_sample_request())
+
+    assert response.best_move.delta_vs_best == 0
+    assert len(response.top_moves) == 3

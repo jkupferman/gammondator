@@ -187,6 +187,14 @@ export GAMMONDATOR_ANALYZER=gnubg
 export GAMMONDATOR_GNUBG_BRIDGE_CMD='.venv/bin/python scripts/gnubg_bridge_stub.py'
 ```
 
+Real GNUbg bridge command:
+
+```bash
+export GAMMONDATOR_ANALYZER=gnubg
+export GAMMONDATOR_GNUBG_BRIDGE_CMD='.venv/bin/python scripts/gnubg_bridge_real.py'
+export GNUBG_BIN='/opt/local/bin/gnubg'
+```
+
 Optional:
 
 ```bash
