@@ -9,6 +9,7 @@ const state = {
   selectedFrom: null,
   submittingMove: false,
   animating: false,
+  lastHumanWinPct: null,
 };
 
 const el = {
@@ -99,6 +100,8 @@ function formatMoveAnalysisSummary(analysis) {
   }[played.quality] || "Move reviewed.";
   const loss = Number(played.delta_vs_best || 0);
   const isOptimal = loss <= 0.001;
+  const currentWinPct = estimateWinPctFromEquity(played.equity);
+  const winDelta = state.lastHumanWinPct === null ? null : currentWinPct - state.lastHumanWinPct;
   const lossHint =
     isOptimal
       ? "You found an optimal move."
@@ -120,14 +123,25 @@ function formatMoveAnalysisSummary(analysis) {
     isOptimal && played.notation !== best.notation
       ? `${best.notation} (equivalent line)`
       : best.notation;
+  const winPctLine =
+    winDelta === null
+      ? `Win %: ${currentWinPct.toFixed(1)}%`
+      : `Win %: ${currentWinPct.toFixed(1)}% (${winDelta >= 0 ? "+" : ""}${winDelta.toFixed(1)}%)`;
+  state.lastHumanWinPct = currentWinPct;
   return [
     qualityTitle,
     `You played: ${played.notation}`,
     `Best line: ${bestLine}`,
+    winPctLine,
     `Equity loss: ${loss.toFixed(3)}. ${lossHint}`,
     `Why: ${firstReason}`,
     `Next step: ${nextStep}`,
   ].join("\n");
+}
+
+function estimateWinPctFromEquity(equity) {
+  const normalized = Math.max(-1, Math.min(1, Number(equity) || 0));
+  return 50 + normalized * 50;
 }
 
 function formatTipSummary(selectedMove, suggestion) {
@@ -652,6 +666,7 @@ async function createNewSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.submittingMove = false;
+    state.lastHumanWinPct = null;
     notify("New game started.");
     render();
     await refreshLegalMoves();
@@ -673,6 +688,7 @@ async function loadSession(sessionId) {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.submittingMove = false;
+    state.lastHumanWinPct = null;
     notify(`Resumed session #${session.session_id}.`);
     render();
     await refreshLegalMoves();
