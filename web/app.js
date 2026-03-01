@@ -14,6 +14,8 @@ const state = {
   transientStatusTimer: null,
 };
 
+const LAST_SESSION_KEY = "gammondator.lastSessionId";
+
 const el = {
   newGameBtn: document.getElementById("newGameBtn"),
   tipBtn: document.getElementById("tipBtn"),
@@ -40,6 +42,21 @@ async function api(path, options = {}) {
 
 function notify(message, isError = false) {
   el.feedback.textContent = isError ? `Error: ${message}` : message;
+}
+
+function readLastSessionId() {
+  const raw = window.localStorage.getItem(LAST_SESSION_KEY);
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function saveLastSessionId(sessionId) {
+  if (!sessionId) return;
+  window.localStorage.setItem(LAST_SESSION_KEY, String(sessionId));
+}
+
+function clearLastSessionId() {
+  window.localStorage.removeItem(LAST_SESSION_KEY);
 }
 
 function diePipPositions(value) {
@@ -912,12 +929,13 @@ async function createNewSession() {
       body: JSON.stringify({ initial_position: startingPosition(), profile_id: "default" }),
     });
     state.sessionId = created.session_id;
+    saveLastSessionId(state.sessionId);
     state.position = created.current_position;
     state.moveSteps = [];
     state.selectedFrom = null;
     state.submittingMove = false;
     state.lastHumanWinPct = null;
-    notify("New game started.");
+    notify("New game started (new session created).");
     render();
     await refreshLegalMoves();
     await autoAdvanceWhiteTurns();
@@ -930,10 +948,12 @@ async function loadSession(sessionId) {
   try {
     const session = await api(`/sessions/${sessionId}`);
     if (session.status !== "active") {
+      clearLastSessionId();
       await createNewSession();
       return;
     }
     state.sessionId = session.session_id;
+    saveLastSessionId(state.sessionId);
     state.position = session.current_position;
     state.moveSteps = [];
     state.selectedFrom = null;
@@ -950,6 +970,19 @@ async function loadSession(sessionId) {
 
 async function ensureSession() {
   try {
+    const preferredSessionId = readLastSessionId();
+    if (preferredSessionId) {
+      try {
+        const preferred = await api(`/sessions/${preferredSessionId}`);
+        if (preferred.status === "active") {
+          await loadSession(preferred.session_id || preferredSessionId);
+          return;
+        }
+        clearLastSessionId();
+      } catch {
+        clearLastSessionId();
+      }
+    }
     const sessions = await api("/sessions?profile_id=default&status=active");
     const active = Array.isArray(sessions.sessions) ? sessions.sessions : [];
     if (active.length > 0) {
