@@ -16,6 +16,7 @@ const state = {
   sessionTurns: [],
   currentDrill: null,
 };
+const HUMAN_SIDE = "white";
 
 const el = {
   die1: document.getElementById("die1"),
@@ -435,6 +436,9 @@ function canChooseSource(point) {
   if (!state.position || state.animating) {
     return false;
   }
+  if (state.position.turn !== HUMAN_SIDE) {
+    return false;
+  }
   const turn = state.position.turn;
   if (point >= 1 && point <= 24) {
     const value = state.position.points[point - 1] || 0;
@@ -449,8 +453,8 @@ function canChooseSource(point) {
   }
 
   const validSources = getValidSourcesForPrefix();
-  if (validSources.size > 0) {
-    return validSources.has(point);
+  if (state.legalMoves.length > 0) {
+    return validSources.size > 0 && validSources.has(point);
   }
   return true;
 }
@@ -477,7 +481,7 @@ function chooseSource(point, showErrors = true) {
 function chooseDestination(point, showErrors = true) {
   if (!state.position || state.selectedFrom === null || state.animating) return false;
   const validTargets = getValidTargetsForSelection();
-  if (validTargets.size > 0 && !validTargets.has(point)) {
+  if (state.legalMoves.length > 0 && (validTargets.size === 0 || !validTargets.has(point))) {
     if (showErrors) {
       notify("That destination is not legal for the selected checker.", true);
     }
@@ -811,6 +815,7 @@ function renderOffCheckers(side, count) {
 function renderMoveBuilder() {
   const validTargets = getValidTargetsForSelection();
   const offPoint = state.position ? (state.position.turn === "white" ? 0 : 25) : null;
+  const humanTurn = Boolean(state.position && state.position.turn === HUMAN_SIDE);
 
   if (state.moveSteps.length === 0) {
     el.currentMove.textContent = "No move selected";
@@ -820,9 +825,9 @@ function renderMoveBuilder() {
   }
   el.clearMoveBtn.disabled = state.moveSteps.length === 0;
   el.undoStepBtn.disabled = state.moveSteps.length === 0;
-  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating;
-  el.fromBarBtn.disabled = !state.position || state.animating;
-  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating;
+  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating || !humanTurn;
+  el.fromBarBtn.disabled = !state.position || state.animating || !humanTurn;
+  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating || !humanTurn;
   el.clearMoveBtn.disabled = el.clearMoveBtn.disabled || state.animating;
   el.undoStepBtn.disabled = el.undoStepBtn.disabled || state.animating;
   el.replayMoveBtn.disabled = state.animating || !state.lastReplay;
@@ -1017,6 +1022,9 @@ async function resumeSelectedSession() {
     renderMoveBuilder();
     await loadSessionTurns(state.sessionId);
     await refreshLegalMoves(true);
+    if (state.position && state.position.turn !== HUMAN_SIDE) {
+      await aiTurn(false);
+    }
     await loadTrainingSummary();
     await loadAnalysisJobs();
     notify(`Resumed session #${state.sessionId}.`);
@@ -1123,7 +1131,7 @@ async function submitMove() {
     await loadSessionTurns(state.sessionId);
     await loadTrainingSummary();
     await loadAnalysisJobs();
-    if (el.autoAiToggle.checked && state.sessionId) {
+    if (state.sessionId && state.position && state.position.turn !== HUMAN_SIDE) {
       await aiTurn(false);
     }
   } catch (err) {
@@ -1133,6 +1141,7 @@ async function submitMove() {
 
 async function aiTurn(showNotify = true) {
   if (!state.sessionId || !state.position) return;
+  if (state.position.turn === HUMAN_SIDE) return;
   try {
     const startingPosition = clonePosition(state.position);
     const played = await api(`/sessions/${state.sessionId}/ai-turn`, {
