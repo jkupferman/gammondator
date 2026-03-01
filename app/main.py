@@ -911,6 +911,9 @@ def _apply_ai_turn_once(
     apply_move: bool = True,
     move_count: int | None = None,
 ) -> SessionAIMoveResponse:
+    def _normalize_notation(text: str) -> str:
+        return " ".join((text or "").split())
+
     pass_move = Move(notation="pass", steps=[MoveStep(from_point=0, to_point=0)])
     pass_score = MoveScore(
         notation="pass",
@@ -957,14 +960,36 @@ def _apply_ai_turn_once(
             candidate_moves=legal_moves,
         )
     )
-    selected = next((move for move in legal_moves if move.notation == analyzed.best_move.notation), None)
-    if selected is None:
-        raise HTTPException(status_code=500, detail="best move not found in legal move list")
+    selected = next(
+        (
+            move
+            for move in legal_moves
+            if _normalize_notation(move.notation) == _normalize_notation(analyzed.best_move.notation)
+        ),
+        legal_moves[0],
+    )
+    selected_score = next(
+        (
+            score
+            for score in analyzed.top_moves
+            if _normalize_notation(score.notation) == _normalize_notation(selected.notation)
+        ),
+        None,
+    )
+    if selected_score is None:
+        selected_analysis = runtime.analyze_move(
+            AnalyzeMoveRequest(
+                position=current_position,
+                played_move=selected,
+                candidate_moves=legal_moves,
+            )
+        )
+        selected_score = selected_analysis.played_move
 
     if not apply_move:
         return SessionAIMoveResponse(
             session_id=session_id,
-            selected_move=analyzed.best_move,
+            selected_move=selected_score,
             selected_play=selected,
             top_moves=analyzed.top_moves,
             move_count=safe_move_count,
@@ -993,7 +1018,7 @@ def _apply_ai_turn_once(
     )
     return SessionAIMoveResponse(
         session_id=session_id,
-        selected_move=analyzed.best_move,
+        selected_move=selected_score,
         selected_play=selected,
         top_moves=analyzed.top_moves,
         move_count=int(advanced["move_count"]),

@@ -2,7 +2,8 @@ import sqlite3
 
 from fastapi.testclient import TestClient
 
-from app.main import app, session_store
+from app.main import app, runtime, session_store
+from app.schemas import AnalyzeMoveResponse, AnalyzeMoveRequest, MoveScore
 
 client = TestClient(app)
 
@@ -458,6 +459,43 @@ def test_analyze_move_returns_ranked_feedback() -> None:
     assert len(data["top_moves"]) == 3
     assert data["played_move"]["delta_vs_best"] >= 0
     assert isinstance(data["played_move"]["why"], list)
+
+
+def test_ai_turn_falls_back_when_best_notation_is_missing(monkeypatch) -> None:
+    create_response = client.post("/sessions", json={"initial_position": SAMPLE_PAYLOAD["position"]})
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+
+    original_analyze = runtime.analyze_move
+
+    def fake_analyze(request: AnalyzeMoveRequest) -> AnalyzeMoveResponse:
+        if request.position.turn == "white" and len(request.candidate_moves) >= 1:
+            ghost = MoveScore(
+                notation="ghost/99",
+                equity=0.5,
+                delta_vs_best=0.0,
+                quality="excellent",
+                why=["synthetic"],
+            )
+            fallback = MoveScore(
+                notation=request.candidate_moves[0].notation,
+                equity=0.45,
+                delta_vs_best=0.05,
+                quality="good",
+                why=["fallback"],
+            )
+            return AnalyzeMoveResponse(best_move=ghost, played_move=fallback, top_moves=[ghost, fallback])
+        return original_analyze(request)
+
+    monkeypatch.setattr(runtime, "analyze_move", fake_analyze)
+
+    response = client.post(
+        f"/sessions/{session_id}/ai-turn",
+        json={"next_dice": [4, 2], "apply_move": True},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["selected_play"]["notation"] != "ghost/99"
 
 
 def test_analyze_move_rejects_illegal_candidate() -> None:
