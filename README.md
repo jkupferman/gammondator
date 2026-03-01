@@ -50,6 +50,7 @@ Server runs at `http://127.0.0.1:8000`.
 - `POST /sessions`
 - `GET /sessions/{session_id}`
 - `GET /sessions/{session_id}/turns`
+- `GET /sessions/{session_id}/turns/markdown`
 - `POST /sessions/{session_id}/play-turn`
 - `POST /sessions/{session_id}/ai-turn`
 - `POST /sessions/{session_id}/roll`

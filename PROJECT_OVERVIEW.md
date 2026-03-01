@@ -42,6 +42,7 @@ Gammondator solves this by running in a live game loop:
   - `POST /sessions`
   - `GET /sessions/{session_id}`
   - `GET /sessions/{session_id}/turns`
+  - `GET /sessions/{session_id}/turns/markdown`
   - `POST /sessions/{session_id}/play-turn`
   - `POST /sessions/{session_id}/ai-turn`
   - `POST /sessions/{session_id}/roll`

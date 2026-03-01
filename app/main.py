@@ -377,6 +377,36 @@ def session_turns_endpoint(session_id: int, limit: int = 200) -> SessionTurnList
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@app.get("/sessions/{session_id}/turns/markdown", response_class=PlainTextResponse)
+def session_turns_markdown_endpoint(session_id: int, limit: int = 200) -> str:
+    turns_response = session_turns_endpoint(session_id=session_id, limit=limit)
+    lines = [
+        f"# Session {session_id} Turn Timeline",
+        "",
+    ]
+    if not turns_response.turns:
+        lines.append("No turns recorded.")
+        return "\n".join(lines)
+
+    for idx, turn in enumerate(turns_response.turns, start=1):
+        why = "; ".join(turn.why) if turn.why else "No notes."
+        lines.extend(
+            [
+                f"## Turn {idx}",
+                f"- Timestamp: {turn.created_at}",
+                f"- Side: {turn.turn}",
+                f"- Actor: {turn.actor}",
+                f"- Played: {turn.played_notation}",
+                f"- Best: {turn.best_notation}",
+                f"- Quality: {turn.quality}",
+                f"- Equity Loss: {turn.equity_loss}",
+                f"- Why: {why}",
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
 @app.post("/analyze-move", response_model=AnalyzeMoveResponse)
 def analyze_move_endpoint(payload: AnalyzeMoveRequest) -> AnalyzeMoveResponse:
     try:
