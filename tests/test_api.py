@@ -200,6 +200,38 @@ def test_session_ai_turn_preview_only() -> None:
     assert data["move_count"] == 0
 
 
+def test_session_ai_turn_forced_pass_advances_turn() -> None:
+    points = [0] * 24
+    points[22] = -2
+    points[23] = -2
+    blocked_white = {
+        "points": points,
+        "bar_white": 1,
+        "bar_black": 0,
+        "off_white": 14,
+        "off_black": 11,
+        "turn": "white",
+        "cube_value": 1,
+        "dice": [1, 2],
+    }
+    create_response = client.post(
+        "/sessions",
+        json={"initial_position": blocked_white},
+    )
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+
+    response = client.post(
+        f"/sessions/{session_id}/ai-turn",
+        json={"next_dice": [4, 2], "apply_move": True},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["selected_move"]["notation"] == "pass"
+    assert data["current_position"]["turn"] == "black"
+    assert data["current_position"]["dice"] == [4, 2]
+
+
 def test_session_roll_endpoint() -> None:
     create_response = client.post(
         "/sessions",

@@ -31,6 +31,9 @@ from app.schemas import (
     ChooseAIMoveResponse,
     LegalMovesRequest,
     LegalMovesResponse,
+    Move,
+    MoveScore,
+    MoveStep,
     RatePlayedMoveRequest,
     RatePlayedMoveRecordedResponse,
     CubeDecisionRequest,
@@ -812,10 +815,42 @@ def play_session_ai_turn_endpoint(
     current_position = state["current_position"]
 
     try:
+        pass_move = Move(notation="pass", steps=[MoveStep(from_point=0, to_point=0)])
+        pass_score = MoveScore(
+            notation="pass",
+            equity=0.0,
+            delta_vs_best=0.0,
+            quality="excellent",
+            why=["Forced pass: no legal moves available."],
+        )
         next_dice = payload.next_dice or (random.randint(1, 6), random.randint(1, 6))
         legal_moves = generate_legal_moves(current_position)
         if not legal_moves:
-            raise HTTPException(status_code=400, detail="no legal moves available")
+            if not payload.apply_move:
+                return SessionAIMoveResponse(
+                    session_id=session_id,
+                    selected_move=pass_score,
+                    selected_play=pass_move,
+                    top_moves=[pass_score],
+                    move_count=int(state["move_count"]),
+                    current_position=None,
+                )
+
+            passed_position = current_position.model_copy(
+                update={
+                    "turn": "black" if current_position.turn == "white" else "white",
+                    "dice": next_dice,
+                }
+            )
+            updated = session_store.set_position(session_id=session_id, position=passed_position)
+            return SessionAIMoveResponse(
+                session_id=session_id,
+                selected_move=pass_score,
+                selected_play=pass_move,
+                top_moves=[pass_score],
+                move_count=int(updated["move_count"]),
+                current_position=updated["current_position"],
+            )
 
         analyzed = runtime.analyze_move(
             AnalyzeMoveRequest(

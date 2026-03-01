@@ -1204,7 +1204,7 @@ async function aiTurn(showNotify = true) {
       method: "POST",
       body: JSON.stringify({ apply_move: true }),
     });
-    const aiSteps = played.selected_play?.steps || [];
+    const aiSteps = played.selected_play?.notation === "pass" ? [] : (played.selected_play?.steps || []);
     const stepSummary = summarizeStepEvents(startingPosition, aiSteps);
     state.moveSteps = [];
     state.selectedFrom = null;
