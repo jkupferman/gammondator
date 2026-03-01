@@ -18,7 +18,8 @@ const el = {
   turnStatus: document.getElementById("turnStatus"),
   diceStatus: document.getElementById("diceStatus"),
   boardGrid: document.getElementById("boardGrid"),
-  offTrays: document.getElementById("offTrays"),
+  whiteOffRail: document.getElementById("whiteOffRail"),
+  blackOffRail: document.getElementById("blackOffRail"),
   moveStatus: document.getElementById("moveStatus"),
   feedback: document.getElementById("feedback"),
 };
@@ -442,7 +443,8 @@ function maybeAutoSubmitBuiltMove() {
 function renderBoard() {
   if (!state.position) {
     el.boardGrid.innerHTML = "";
-    el.offTrays.innerHTML = "";
+    el.whiteOffRail.innerHTML = "";
+    el.blackOffRail.innerHTML = "";
     return;
   }
 
@@ -548,25 +550,21 @@ function renderBoard() {
     !state.submittingMove &&
     !state.animating;
 
-  const off = document.createElement("div");
-  off.className = "off-trays-inner";
-  off.innerHTML = `
-    <button class="off-tray" disabled>
+  el.whiteOffRail.innerHTML = `
+    <button class="off-rail" disabled>
       <div class="off-title">White Off (${boardPosition.off_white})</div>
       <div class="off-stack">${renderOffCheckers("white", boardPosition.off_white)}</div>
     </button>
-    <button class="off-tray" id="blackOffBtn" ${canBearOffBlack ? "" : "disabled"}>
+  `;
+  el.blackOffRail.innerHTML = `
+    <button class="off-rail" id="blackOffBtn" ${canBearOffBlack ? "" : "disabled"}>
       <div class="off-title">Black Off (${boardPosition.off_black})</div>
       <div class="off-stack">${renderOffCheckers("black", boardPosition.off_black)}</div>
     </button>
   `;
-  el.offTrays.innerHTML = "";
-  el.offTrays.appendChild(off);
 
   const blackOffBtn = document.getElementById("blackOffBtn");
-  if (blackOffBtn) {
-    blackOffBtn.addEventListener("click", () => chooseDestination(25));
-  }
+  if (blackOffBtn) blackOffBtn.addEventListener("click", () => chooseDestination(25));
 }
 
 function render() {

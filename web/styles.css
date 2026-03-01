@@ -79,7 +79,7 @@ button:disabled {
 
 .board-stage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 190px;
+  grid-template-columns: 74px minmax(0, 1fr) 74px;
   gap: 10px;
   align-items: start;
 }
@@ -255,33 +255,37 @@ button:disabled {
   min-height: 30px;
 }
 
-.off-trays {
-  margin-top: 4px;
+.off-rail-wrap {
+  min-height: 456px;
 }
 
-.off-trays-inner {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-}
-
-.off-tray {
+.off-rail {
+  width: 100%;
+  min-height: 456px;
   border: 2px solid rgba(0,0,0,0.2);
   border-radius: 8px;
   padding: 8px;
-  min-height: 76px;
   background: rgba(255,255,255,0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 .off-title {
   font-weight: 700;
-  margin-bottom: 6px;
+  text-align: center;
+  font-size: 12px;
 }
 
 .off-stack {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  min-height: 300px;
 }
 
 .off-empty {
@@ -309,6 +313,24 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .off-rail-wrap {
+    min-height: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .off-rail {
+    min-height: 110px;
+  }
+
+  .off-stack {
+    min-height: 46px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
   .status-bar {
     flex-direction: column;
     align-items: flex-start;
@@ -332,7 +354,4 @@ button:disabled {
     border-bottom-width: 132px;
   }
 
-  .off-trays-inner {
-    grid-template-columns: 1fr 1fr;
-  }
 }
