@@ -1,6 +1,8 @@
+import sqlite3
+
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, session_store
 
 client = TestClient(app)
 
@@ -240,6 +242,40 @@ def test_session_turns_markdown_endpoint() -> None:
     assert f"# Session {session_id} Turn Timeline" in body
     assert "- Dice: 6-1" in body
     assert "Played: 24/18 8/7" in body
+
+
+def test_session_turns_handles_invalid_dice_json() -> None:
+    create_response = client.post(
+        "/sessions",
+        json={"initial_position": SAMPLE_PAYLOAD["position"]},
+    )
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+    play_response = client.post(
+        f"/sessions/{session_id}/play-turn",
+        json={
+            "played_move": SAMPLE_PAYLOAD["played_move"],
+            "next_dice": [3, 2],
+            "record_training": True,
+        },
+    )
+    assert play_response.status_code == 200
+
+    conn = sqlite3.connect(session_store.db_path)
+    try:
+        conn.execute(
+            "UPDATE session_turns SET dice_json = ? WHERE session_id = ?",
+            ("not-json", session_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    response = client.get(f"/sessions/{session_id}/turns")
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["turns"]) >= 1
+    assert payload["turns"][0]["dice"] is None
 
 
 def test_list_sessions_by_profile() -> None:

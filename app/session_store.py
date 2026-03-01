@@ -239,9 +239,12 @@ class SessionStore:
             raw_dice = row["dice_json"]
             dice: tuple[int, int] | None = None
             if raw_dice:
-                decoded = json.loads(str(raw_dice))
-                if isinstance(decoded, list) and len(decoded) == 2:
-                    dice = (int(decoded[0]), int(decoded[1]))
+                try:
+                    decoded = json.loads(str(raw_dice))
+                    if isinstance(decoded, list) and len(decoded) == 2:
+                        dice = (int(decoded[0]), int(decoded[1]))
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    dice = None
             turns.append(
                 {
                     "turn_id": int(row["id"]),
