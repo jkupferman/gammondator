@@ -16,11 +16,10 @@ const state = {
   currentDrill: null,
 };
 
-const MOVE_ANIMATION_STEP_MS = 320;
-
 const el = {
   die1: document.getElementById("die1"),
   die2: document.getElementById("die2"),
+  animationMs: document.getElementById("animationMs"),
   profileId: document.getElementById("profileId"),
   newSessionBtn: document.getElementById("newSessionBtn"),
   loadLegalBtn: document.getElementById("loadLegalBtn"),
@@ -71,6 +70,7 @@ function notify(text, isError = false) {
 function savePreferences() {
   window.localStorage.setItem("gammondator.profileId", el.profileId.value || "default");
   window.localStorage.setItem("gammondator.autoAi", el.autoAiToggle.checked ? "1" : "0");
+  window.localStorage.setItem("gammondator.animationMs", String(el.animationMs.value || "320"));
 }
 
 function loadPreferences() {
@@ -80,6 +80,10 @@ function loadPreferences() {
   }
   const autoAi = window.localStorage.getItem("gammondator.autoAi");
   el.autoAiToggle.checked = autoAi === "1";
+  const animationMs = window.localStorage.getItem("gammondator.animationMs");
+  if (animationMs) {
+    el.animationMs.value = animationMs;
+  }
 }
 
 async function api(path, options = {}) {
@@ -105,6 +109,12 @@ function currentProfileId() {
 
 function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function animationStepMs() {
+  const parsed = Number(el.animationMs.value);
+  if (!Number.isFinite(parsed)) return 320;
+  return Math.max(120, Math.min(900, parsed));
 }
 
 function clonePosition(position) {
@@ -220,7 +230,7 @@ async function animateMoveReplay(startPosition, steps, finalPosition) {
       hitSide: applied.hit.side,
     };
     renderBoard();
-    await sleep(MOVE_ANIMATION_STEP_MS);
+    await sleep(animationStepMs());
   }
 
   if (state.animationSeq !== seq) {
@@ -1290,6 +1300,7 @@ el.profileId.addEventListener("change", async () => {
   await loadSessionList();
 });
 el.autoAiToggle.addEventListener("change", savePreferences);
+el.animationMs.addEventListener("change", savePreferences);
 el.toOffBtn.addEventListener("dragover", onOffDragOver);
 el.toOffBtn.addEventListener("drop", onOffDrop);
 el.toOffBtn.addEventListener("touchend", (event) => {
