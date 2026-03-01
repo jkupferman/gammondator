@@ -18,6 +18,7 @@ from app.schemas import (
     RatePlayedMoveRequest,
     RatePlayedMoveRecordedResponse,
     TrainingMistakesResponse,
+    TrainingLeaksResponse,
     TrainingSummaryResponse,
 )
 from app.training_store import TrainingStore
@@ -162,6 +163,11 @@ def training_summary_endpoint() -> TrainingSummaryResponse:
 @app.get("/training/mistakes", response_model=TrainingMistakesResponse)
 def training_mistakes_endpoint(limit: int = 20) -> TrainingMistakesResponse:
     return TrainingMistakesResponse(mistakes=training_store.top_mistakes(limit=limit))
+
+
+@app.get("/training/leaks", response_model=TrainingLeaksResponse)
+def training_leaks_endpoint() -> TrainingLeaksResponse:
+    return TrainingLeaksResponse(leaks=training_store.leak_summary())
 
 
 @app.post("/analyze-position", response_model=AnalyzePositionResponse)

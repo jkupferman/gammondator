@@ -197,3 +197,11 @@ def test_rate_played_move_and_record_and_training_views() -> None:
     mistakes = mistakes_response.json()["mistakes"]
     assert isinstance(mistakes, list)
     assert len(mistakes) >= 1
+    assert "leak_category" in mistakes[0]
+
+    leaks_response = client.get("/training/leaks")
+    assert leaks_response.status_code == 200
+    leaks = leaks_response.json()["leaks"]
+    assert isinstance(leaks, list)
+    assert len(leaks) >= 1
+    assert "leak_category" in leaks[0]

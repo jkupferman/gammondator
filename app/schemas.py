@@ -135,3 +135,14 @@ class AnalyzePositionResponse(BaseModel):
     best_move: MoveScore
     top_moves: list[MoveScore]
     legal_move_count: int
+
+
+class TrainingLeakItem(BaseModel):
+    leak_category: str
+    move_count: int
+    average_equity_loss: float
+    max_equity_loss: float
+
+
+class TrainingLeaksResponse(BaseModel):
+    leaks: list[TrainingLeakItem]

@@ -32,6 +32,7 @@ Server runs at `http://127.0.0.1:8000`.
 - `POST /rate-played-move-and-record`
 - `GET /training/summary`
 - `GET /training/mistakes`
+- `GET /training/leaks`
 
 ## Example Request
 
@@ -129,6 +130,7 @@ Read training stats:
 ```bash
 curl 'http://127.0.0.1:8000/training/summary'
 curl 'http://127.0.0.1:8000/training/mistakes?limit=20'
+curl 'http://127.0.0.1:8000/training/leaks'
 ```
 
 ## Testing

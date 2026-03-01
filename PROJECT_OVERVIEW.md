@@ -38,6 +38,7 @@ Gammondator solves this by running in a live game loop:
   - `POST /rate-played-move-and-record`
   - `GET /training/summary`
   - `GET /training/mistakes`
+  - `GET /training/leaks`
 - Strict input/output schemas for position and move analysis.
 - Heuristic baseline analyzer with move quality classification.
 - Explanation layer based on structural/racing features.
@@ -45,6 +46,7 @@ Gammondator solves this by running in a live game loop:
 - Server-side legal move generation from position + dice (including bar entry and bearing off rules).
 - Server-side played-move rating from position + move (no client candidate list required).
 - SQLite-backed training history for recorded move reviews and mistake reporting.
+- Leak categorization summary to show recurring strategic/tactical mistake patterns.
 - GNU Backgammon bridge contract support with fallback to heuristic backend.
 - Local bridge stub script for integration testing.
 - Automated tests for API + backend behavior.

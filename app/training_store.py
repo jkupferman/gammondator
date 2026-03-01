@@ -19,6 +19,19 @@ class TrainingSummary:
     last_recorded_at: str | None
 
 
+def _classify_leak_category(why_messages: list[str]) -> str:
+    text = " ".join(message.lower() for message in why_messages)
+    if "shot" in text or "blot" in text or "safer play" in text:
+        return "safety"
+    if "prime" in text or "containment" in text:
+        return "prime_structure"
+    if "race" in text or "pip" in text:
+        return "race_timing"
+    if "anchor" in text:
+        return "anchors"
+    return "general"
+
+
 class TrainingStore:
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
@@ -46,14 +59,21 @@ class TrainingStore:
                     best_equity REAL NOT NULL,
                     equity_loss REAL NOT NULL,
                     quality TEXT NOT NULL,
+                    leak_category TEXT NOT NULL DEFAULT 'general',
                     position_json TEXT NOT NULL
                 )
                 """
             )
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(move_reviews)")}
+            if "leak_category" not in columns:
+                conn.execute(
+                    "ALTER TABLE move_reviews ADD COLUMN leak_category TEXT NOT NULL DEFAULT 'general'"
+                )
             conn.commit()
 
     def record_review(self, position: Position, analysis: AnalyzeMoveResponse) -> int:
         now = datetime.now(tz=timezone.utc).isoformat()
+        leak_category = _classify_leak_category(analysis.played_move.why)
         with self._connect() as conn:
             cursor = conn.execute(
                 """
@@ -68,8 +88,9 @@ class TrainingStore:
                     best_equity,
                     equity_loss,
                     quality,
+                    leak_category,
                     position_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     now,
@@ -82,6 +103,7 @@ class TrainingStore:
                     float(analysis.best_move.equity),
                     float(analysis.played_move.delta_vs_best),
                     analysis.played_move.quality,
+                    leak_category,
                     json.dumps(position.model_dump()),
                 ),
             )
@@ -128,7 +150,8 @@ class TrainingStore:
                     played_equity,
                     best_equity,
                     equity_loss,
-                    quality
+                    quality,
+                    leak_category
                 FROM move_reviews
                 ORDER BY equity_loss DESC, created_at DESC
                 LIMIT ?
@@ -148,6 +171,32 @@ class TrainingStore:
                     "best_equity": float(row["best_equity"]),
                     "equity_loss": float(row["equity_loss"]),
                     "quality": str(row["quality"]),
+                    "leak_category": str(row["leak_category"]),
+                }
+                for row in rows
+            ]
+
+    def leak_summary(self) -> list[dict[str, object]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    leak_category,
+                    COUNT(*) AS move_count,
+                    ROUND(AVG(equity_loss), 4) AS average_equity_loss,
+                    MAX(equity_loss) AS max_equity_loss
+                FROM move_reviews
+                GROUP BY leak_category
+                ORDER BY average_equity_loss DESC, move_count DESC
+                """
+            ).fetchall()
+
+            return [
+                {
+                    "leak_category": str(row["leak_category"]),
+                    "move_count": int(row["move_count"]),
+                    "average_equity_loss": float(row["average_equity_loss"] or 0.0),
+                    "max_equity_loss": float(row["max_equity_loss"] or 0.0),
                 }
                 for row in rows
             ]
