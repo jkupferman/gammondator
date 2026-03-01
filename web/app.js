@@ -3,7 +3,9 @@ const state = {
   position: null,
   legalMoves: [],
   legalMovesLoaded: false,
+  legalMovesReqSeq: 0,
   moveSteps: [],
+  submittingMove: false,
   selectedFrom: null,
   dragFrom: null,
   touchDragging: false,
@@ -432,7 +434,7 @@ function getValidTargetsForSelection() {
 }
 
 function canChooseSource(point) {
-  if (!state.position || state.animating) {
+  if (!state.position || state.animating || state.submittingMove) {
     return false;
   }
   if (state.position.turn !== HUMAN_SIDE) {
@@ -466,7 +468,7 @@ function clearDragState() {
 }
 
 function chooseSource(point, showErrors = true) {
-  if (!state.position) return false;
+  if (!state.position || state.submittingMove) return false;
   if (!state.legalMovesLoaded) {
     if (showErrors) {
       notify("Loading legal moves for this turn...", true);
@@ -486,7 +488,7 @@ function chooseSource(point, showErrors = true) {
 }
 
 function chooseDestination(point, showErrors = true) {
-  if (!state.position || state.selectedFrom === null || state.animating) return false;
+  if (!state.position || state.selectedFrom === null || state.animating || state.submittingMove) return false;
   const validTargets = getValidTargetsForSelection();
   if (state.legalMoves.length > 0 && (validTargets.size === 0 || !validTargets.has(point))) {
     if (showErrors) {
@@ -506,9 +508,7 @@ function chooseDestination(point, showErrors = true) {
   }
   renderMoveBuilder();
   renderBoard();
-  if (exactMatch) {
-    submitMove();
-  }
+  maybeAutoSubmitBuiltMove();
   return true;
 }
 
@@ -533,6 +533,25 @@ function exactLegalMoveMatch() {
     }
   }
   return null;
+}
+
+function maybeAutoSubmitBuiltMove() {
+  if (!state.position || state.animating || state.submittingMove) return;
+  if (!state.legalMovesLoaded || state.selectedFrom !== null || state.moveSteps.length === 0) return;
+  const exactMatch = exactLegalMoveMatch();
+  if (!exactMatch) return;
+  state.moveSteps = exactMatch.steps.map((step) => ({
+    from_point: step.from_point,
+    to_point: step.to_point,
+  }));
+  renderMoveBuilder();
+  renderBoard();
+  window.setTimeout(() => {
+    if (!state.position || state.animating || state.submittingMove) return;
+    if (state.position.turn !== HUMAN_SIDE) return;
+    if (!exactLegalMoveMatch()) return;
+    submitMove();
+  }, 0);
 }
 
 function onCheckerDragStart(event) {
@@ -630,6 +649,7 @@ function onOffDragOver(event) {
 
 async function refreshLegalMoves(silent = true) {
   if (!state.position) {
+    state.legalMovesReqSeq += 1;
     state.legalMoves = [];
     state.legalMovesLoaded = false;
     renderLegalMoves();
@@ -637,6 +657,8 @@ async function refreshLegalMoves(silent = true) {
     renderMoveBuilder();
     return;
   }
+  const requestSeq = state.legalMovesReqSeq + 1;
+  state.legalMovesReqSeq = requestSeq;
   state.legalMovesLoaded = false;
   renderMoveBuilder();
 
@@ -645,15 +667,18 @@ async function refreshLegalMoves(silent = true) {
       method: "POST",
       body: JSON.stringify({ position: state.position }),
     });
+    if (requestSeq !== state.legalMovesReqSeq) return;
     state.legalMoves = data.moves;
     state.legalMovesLoaded = true;
     renderLegalMoves();
     renderBoard();
     renderMoveBuilder();
+    maybeAutoSubmitBuiltMove();
     if (!silent) {
       notify(`Loaded ${data.moves.length} legal moves.`);
     }
   } catch (err) {
+    if (requestSeq !== state.legalMovesReqSeq) return;
     state.legalMovesLoaded = false;
     renderMoveBuilder();
     if (!silent) {
@@ -878,11 +903,11 @@ function renderMoveBuilder() {
   }
   el.clearMoveBtn.disabled = state.moveSteps.length === 0;
   el.undoStepBtn.disabled = state.moveSteps.length === 0;
-  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating || !humanTurn || !ready;
-  el.fromBarBtn.disabled = !state.position || state.animating || !humanTurn || !ready;
-  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating || !humanTurn || !ready;
-  el.clearMoveBtn.disabled = el.clearMoveBtn.disabled || state.animating;
-  el.undoStepBtn.disabled = el.undoStepBtn.disabled || state.animating;
+  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating || state.submittingMove || !humanTurn || !ready;
+  el.fromBarBtn.disabled = !state.position || state.animating || state.submittingMove || !humanTurn || !ready;
+  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating || state.submittingMove || !humanTurn || !ready;
+  el.clearMoveBtn.disabled = el.clearMoveBtn.disabled || state.animating || state.submittingMove;
+  el.undoStepBtn.disabled = el.undoStepBtn.disabled || state.animating || state.submittingMove;
   el.replayMoveBtn.disabled = state.animating || !state.lastReplay;
   el.toOffBtn.classList.toggle("valid-target-btn", offPoint !== null && validTargets.has(offPoint));
 }
@@ -898,6 +923,7 @@ function renderLegalMoves() {
       state.selectedFrom = null;
       renderMoveBuilder();
       renderBoard();
+      maybeAutoSubmitBuiltMove();
     });
     el.legalMoves.appendChild(li);
   }
@@ -953,7 +979,7 @@ function formatMoveAnalysisSummary(analysis) {
 
 function refreshButtons() {
   const active = Boolean(state.sessionId);
-  const blocked = state.animating;
+  const blocked = state.animating || state.submittingMove;
   el.loadLegalBtn.disabled = !active || blocked;
   el.aiTurnBtn.disabled = !active || blocked;
   el.aiSuggestBtn.disabled = !active || blocked;
@@ -1091,7 +1117,7 @@ async function resumeSelectedSession() {
 }
 
 function onPointClick(point) {
-  if (!state.position) return;
+  if (!state.position || state.submittingMove) return;
   if (state.selectedFrom === null) {
     chooseSource(point);
   } else {
@@ -1153,7 +1179,10 @@ async function loadLegalMoves() {
 }
 
 async function submitMove() {
-  if (!state.sessionId || state.moveSteps.length === 0 || !state.position) return;
+  if (!state.sessionId || state.moveSteps.length === 0 || !state.position || state.submittingMove) return;
+  state.submittingMove = true;
+  renderMoveBuilder();
+  refreshButtons();
   try {
     const startingPosition = clonePosition(state.position);
     const diceLabel = state.position ? `${state.position.dice[0]}-${state.position.dice[1]}` : "";
@@ -1194,6 +1223,10 @@ async function submitMove() {
     }
   } catch (err) {
     notify(err.message, true);
+  } finally {
+    state.submittingMove = false;
+    renderMoveBuilder();
+    refreshButtons();
   }
 }
 
