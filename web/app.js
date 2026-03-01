@@ -129,12 +129,13 @@ function formatMoveAnalysisSummary(analysis) {
           ? "There was a clearly better option."
           : "This choice gives up a lot of equity.";
   const firstReason = reasons[0] || "No notes available.";
-  const nextStep =
-    isOptimal
-      ? "Order differences can still be equivalent when equity loss is zero."
-      : played.notation === best.notation
-      ? "Keep prioritizing safety and tempo like this."
-      : `Next time, compare against: ${best.notation}.`;
+  const nextStep = buildNextStepAdvice({
+    isOptimal,
+    playedNotation: played.notation,
+    bestNotation: best.notation,
+    firstReason,
+    equityLoss: loss,
+  });
   const bestLine =
     isOptimal && played.notation !== best.notation
       ? `${best.notation} (equivalent line)`
@@ -146,9 +147,7 @@ function formatMoveAnalysisSummary(analysis) {
       : `Win %: ${currentWinPct.toFixed(1)}% (${winDelta >= 0 ? "+" : ""}${winDelta.toFixed(1)}%)`;
   const nextStepLine = equivalentButDifferentNotation
     ? "Next step: Same strength as best move; notation order is just different."
-    : played.notation === best.notation
-      ? "Next step: Keep prioritizing safety and tempo like this."
-      : `Next step: Compare your line against ${best.notation} before submitting.`;
+    : `Next step: ${nextStep}`;
   state.lastHumanWinPct = currentWinPct;
   return [
     qualityTitle,
@@ -159,6 +158,38 @@ function formatMoveAnalysisSummary(analysis) {
     `Why: ${firstReason}`,
     nextStepLine,
   ].join("\n");
+}
+
+function buildNextStepAdvice({ isOptimal, playedNotation, bestNotation, firstReason, equityLoss }) {
+  if (isOptimal) {
+    return "Keep this pattern: prioritize safety, tempo, and clean structure.";
+  }
+  const reason = (firstReason || "").toLowerCase();
+  if (reason.includes("race")) {
+    return "Before submitting, check which option saves the most pips without creating new risks.";
+  }
+  if (reason.includes("blot")) {
+    return "Before submitting, scan for unnecessary blots and prefer safer checker distribution.";
+  }
+  if (reason.includes("anchor")) {
+    return "Before submitting, compare options that improve or preserve useful anchors.";
+  }
+  if (reason.includes("hit")) {
+    return "Before submitting, compare hit-and-cover sequences versus pure racing plays.";
+  }
+  if (reason.includes("bar")) {
+    return "Before submitting, prioritize smooth bar entry and avoid immediate re-shots.";
+  }
+  if (reason.includes("bear")) {
+    return "Before submitting, compare bear-off efficiency and avoid leaving shots behind.";
+  }
+  if (equityLoss < 0.05) {
+    return "Close decision. Pause and compare safety versus pip gain before committing.";
+  }
+  if (playedNotation !== bestNotation) {
+    return "Big-picture check: compare safety, pip count, and structure before locking your move.";
+  }
+  return "Keep reviewing candidate lines before you commit.";
 }
 
 function estimateWinPctFromEquity(equity) {
