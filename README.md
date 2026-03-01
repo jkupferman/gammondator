@@ -52,6 +52,7 @@ Server runs at `http://127.0.0.1:8000`.
 - `GET /training/drills/summary`
 - `GET /training/dashboard`
 - `GET /training/report`
+- `GET /training/report/markdown`
 - `POST /cube/decision`
 
 ## Example Request
@@ -199,6 +200,7 @@ curl 'http://127.0.0.1:8000/training/drills?limit=10&profile_id=default'
 curl 'http://127.0.0.1:8000/training/drills/summary?profile_id=default'
 curl 'http://127.0.0.1:8000/training/dashboard?profile_id=default'
 curl 'http://127.0.0.1:8000/training/report?profile_id=default'
+curl 'http://127.0.0.1:8000/training/report/markdown?profile_id=default'
 ```
 
 Submit a drill answer:

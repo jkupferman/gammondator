@@ -479,3 +479,13 @@ def test_training_report_endpoint() -> None:
     assert "drill_summary" in data
     assert isinstance(data["recommendations"], list)
     assert len(data["recommendations"]) >= 1
+
+
+def test_training_report_markdown_endpoint() -> None:
+    response = client.get("/training/report/markdown?profile_id=default")
+    assert response.status_code == 200
+    assert "text/plain" in response.headers.get("content-type", "")
+    text = response.text
+    assert "# Gammondator Training Report (default)" in text
+    assert "## Summary" in text
+    assert "## Recommendations" in text

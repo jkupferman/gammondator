@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.analysis import apply_move_to_position
@@ -583,6 +584,45 @@ def training_report_endpoint(profile_id: str = "default") -> TrainingReportRespo
         drill_summary=drill_summary,
         recommendations=recommendations,
     )
+
+
+@app.get("/training/report/markdown", response_class=PlainTextResponse)
+def training_report_markdown_endpoint(profile_id: str = "default") -> str:
+    report = training_report_endpoint(profile_id=profile_id)
+    lines = [
+        f"# Gammondator Training Report ({profile_id})",
+        "",
+        "## Summary",
+        f"- Total moves: {report.summary.total_moves}",
+        f"- Avg equity loss: {report.summary.average_equity_loss}",
+        f"- Inaccuracies: {report.summary.inaccuracies}",
+        f"- Mistakes: {report.summary.mistakes}",
+        f"- Blunders: {report.summary.blunders}",
+        "",
+        "## Leaks",
+    ]
+    if report.leaks.leaks:
+        for leak in report.leaks.leaks:
+            lines.append(
+                f"- {leak.leak_category}: count={leak.move_count}, avg_loss={leak.average_equity_loss}, max_loss={leak.max_equity_loss}"
+            )
+    else:
+        lines.append("- No leak data yet.")
+
+    lines.extend(
+        [
+            "",
+            "## Drill Summary",
+            f"- Attempts: {report.drill_summary.total_attempts}",
+            f"- Correct: {report.drill_summary.correct_attempts}",
+            f"- Accuracy: {report.drill_summary.accuracy}",
+            "",
+            "## Recommendations",
+        ]
+    )
+    for rec in report.recommendations:
+        lines.append(f"{rec.priority}. {rec.title}: {rec.action}")
+    return "\n".join(lines)
 
 
 @app.post("/cube/decision", response_model=CubeDecisionResponse)
