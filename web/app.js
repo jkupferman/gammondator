@@ -606,6 +606,21 @@ function renderMoveLog() {
   el.moveLog.textContent = lines.join("\n");
 }
 
+function formatMoveAnalysisSummary(analysis) {
+  if (!analysis || !analysis.played_move || !analysis.best_move) {
+    return "No move analysis available.";
+  }
+  const played = analysis.played_move;
+  const best = analysis.best_move;
+  const reasons = Array.isArray(played.why) && played.why.length ? played.why.join("; ") : "No notes.";
+  return [
+    `Played: ${played.notation}`,
+    `Quality: ${played.quality} (equity ${played.equity.toFixed(3)}, loss ${played.delta_vs_best.toFixed(3)})`,
+    `Best: ${best.notation} (equity ${best.equity.toFixed(3)})`,
+    `Why: ${reasons}`,
+  ].join("\n");
+}
+
 function refreshButtons() {
   const active = Boolean(state.sessionId);
   el.loadLegalBtn.disabled = !active;
@@ -778,12 +793,12 @@ async function submitMove() {
       actor: "You",
       notation,
       dice: diceLabel,
-      note: played.analysis?.quality || "",
+      note: `${played.played_move.quality} ${played.played_move.delta_vs_best.toFixed(3)}`,
     });
     renderMoveBuilder();
     renderMoveLog();
     setMoveHighlightFromSteps(playedSteps);
-    notify(JSON.stringify(played.analysis, null, 2));
+    notify(formatMoveAnalysisSummary(played.analysis));
     await refreshLegalMoves(true);
     await loadTrainingSummary();
     await loadAnalysisJobs();
@@ -806,7 +821,7 @@ async function aiTurn() {
       actor: "AI",
       notation: played.selected_move.notation,
       dice: played.selected_move?.dice ? `${played.selected_move.dice[0]}-${played.selected_move.dice[1]}` : "",
-      note: "",
+      note: `${played.selected_move.quality} ${played.selected_move.delta_vs_best.toFixed(3)}`,
     });
     renderMoveBuilder();
     renderMoveLog();
