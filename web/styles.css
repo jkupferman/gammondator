@@ -66,6 +66,13 @@ button:disabled {
   padding: 10px 12px;
 }
 
+.game-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
 .status-bar {
   display: flex;
   justify-content: space-between;
@@ -295,9 +302,15 @@ button:disabled {
   margin: 0;
   white-space: pre-wrap;
   line-height: 1.35;
+  max-height: 72vh;
+  overflow: auto;
 }
 
 @media (max-width: 900px) {
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
+
   .status-bar {
     flex-direction: column;
     align-items: flex-start;
@@ -319,5 +332,9 @@ button:disabled {
 
   .board-point.up::before {
     border-bottom-width: 132px;
+  }
+
+  .feedback-panel pre {
+    max-height: none;
   }
 }
