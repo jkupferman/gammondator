@@ -89,13 +89,45 @@ function formatMoveAnalysisSummary(analysis) {
   }
   const played = analysis.played_move;
   const best = analysis.best_move;
-  const reasons = Array.isArray(played.why) && played.why.length ? played.why.join("; ") : "No notes.";
+  const reasons = Array.isArray(played.why) && played.why.length ? played.why : ["No notes available."];
+  const qualityTitle = {
+    excellent: "Excellent move.",
+    good: "Good move.",
+    inaccuracy: "Small miss.",
+    mistake: "Mistake.",
+    blunder: "Major mistake.",
+  }[played.quality] || "Move reviewed.";
+  const loss = Number(played.delta_vs_best || 0);
+  const lossHint =
+    loss < 0.02
+      ? "You were very close to optimal."
+      : loss < 0.08
+        ? "There was a slightly stronger option."
+        : loss < 0.2
+          ? "There was a clearly better option."
+          : "This choice gives up a lot of equity.";
+  const firstReason = reasons[0] || "No notes available.";
+  const nextStep =
+    played.notation === best.notation
+      ? "Keep prioritizing safety and tempo like this."
+      : `Next time, compare against: ${best.notation}.`;
   return [
-    `Played: ${played.notation}`,
-    `Quality: ${played.quality} (equity ${played.equity.toFixed(3)}, loss ${played.delta_vs_best.toFixed(3)})`,
-    `Best: ${best.notation} (equity ${best.equity.toFixed(3)})`,
-    `Why: ${reasons}`,
+    qualityTitle,
+    `You played: ${played.notation}`,
+    `Best line: ${best.notation}`,
+    `Equity loss: ${loss.toFixed(3)}. ${lossHint}`,
+    `Why: ${firstReason}`,
+    `Next step: ${nextStep}`,
   ].join("\n");
+}
+
+function formatTipSummary(selectedMove, suggestion) {
+  if (!selectedMove || !suggestion) {
+    return "No tip available right now.";
+  }
+  const reasons = Array.isArray(selectedMove.why) && selectedMove.why.length ? selectedMove.why : [];
+  const leadReason = reasons[0] ? `\nReason: ${reasons[0]}` : "";
+  return `Tip: consider ${suggestion.notation}\nThis is rated ${selectedMove.quality} (equity ${selectedMove.equity.toFixed(3)}).${leadReason}`;
 }
 
 function renderStatus() {
@@ -780,8 +812,7 @@ async function showTip() {
       body: JSON.stringify({ apply_move: false }),
     });
     const suggestion = suggested.selected_play;
-    const reasons = Array.isArray(suggested.selected_move?.why) ? suggested.selected_move.why.join("; ") : "";
-    notify(`Tip: ${suggestion.notation}\nQuality: ${suggested.selected_move.quality} | Equity ${suggested.selected_move.equity.toFixed(3)}${reasons ? `\nWhy: ${reasons}` : ""}`);
+    notify(formatTipSummary(suggested.selected_move, suggestion));
   } catch (err) {
     notify(err.message, true);
   }
