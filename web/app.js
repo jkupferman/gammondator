@@ -20,6 +20,7 @@ const el = {
   loadLegalBtn: document.getElementById("loadLegalBtn"),
   aiTurnBtn: document.getElementById("aiTurnBtn"),
   rollBtn: document.getElementById("rollBtn"),
+  autoAiToggle: document.getElementById("autoAiToggle"),
   sessionReportBtn: document.getElementById("sessionReportBtn"),
   closeSessionBtn: document.getElementById("closeSessionBtn"),
   refreshSessionsBtn: document.getElementById("refreshSessionsBtn"),
@@ -802,12 +803,15 @@ async function submitMove() {
     await refreshLegalMoves(true);
     await loadTrainingSummary();
     await loadAnalysisJobs();
+    if (el.autoAiToggle.checked && state.sessionId) {
+      await aiTurn(false);
+    }
   } catch (err) {
     notify(err.message, true);
   }
 }
 
-async function aiTurn() {
+async function aiTurn(showNotify = true) {
   if (!state.sessionId) return;
   try {
     const played = await api(`/sessions/${state.sessionId}/ai-turn`, {
@@ -827,7 +831,9 @@ async function aiTurn() {
     renderMoveLog();
     setMoveHighlightFromSteps(played.selected_move?.steps || []);
     await refreshLegalMoves(true);
-    notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
+    if (showNotify) {
+      notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
+    }
   } catch (err) {
     notify(err.message, true);
   }
