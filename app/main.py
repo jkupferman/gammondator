@@ -24,6 +24,7 @@ from app.schemas import (
     AnalysisJobBatchRunResponse,
     AnalysisJobListResponse,
     AnalysisJobResponse,
+    AnalysisJobStatsResponse,
     ChooseAIMoveRequest,
     ChooseAIMoveFromPositionRequest,
     ChooseAIMoveResponse,
@@ -194,6 +195,18 @@ def list_analysis_jobs_endpoint(
 ) -> AnalysisJobListResponse:
     jobs = analysis_store.list_jobs(profile_id=profile_id, status=status, limit=limit)
     return AnalysisJobListResponse(jobs=[_job_to_response(job) for job in jobs])
+
+
+@app.get("/analysis-jobs/stats", response_model=AnalysisJobStatsResponse)
+def analysis_job_stats_endpoint(profile_id: str = "default") -> AnalysisJobStatsResponse:
+    stats = analysis_store.stats(profile_id=profile_id)
+    return AnalysisJobStatsResponse(
+        profile_id=profile_id,
+        pending=stats["pending"],
+        running=stats["running"],
+        completed=stats["completed"],
+        failed=stats["failed"],
+    )
 
 
 @app.get("/analysis-jobs/{job_id}", response_model=AnalysisJobResponse)

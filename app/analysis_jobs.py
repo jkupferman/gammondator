@@ -166,6 +166,27 @@ class AnalysisJobStore:
             )
             conn.commit()
 
+    def stats(self, profile_id: str = "default") -> dict[str, int]:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+                    SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS running,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
+                FROM analysis_jobs
+                WHERE profile_id = ?
+                """,
+                (profile_id,),
+            ).fetchone()
+        return {
+            "pending": int(row["pending"] or 0),
+            "running": int(row["running"] or 0),
+            "completed": int(row["completed"] or 0),
+            "failed": int(row["failed"] or 0),
+        }
+
     def reset_to_pending(self, job_id: int) -> dict[str, object]:
         now = datetime.now(tz=timezone.utc).isoformat()
         with self._connect() as conn:

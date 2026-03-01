@@ -322,6 +322,14 @@ class AnalysisJobBatchRunResponse(BaseModel):
     job_ids: list[int]
 
 
+class AnalysisJobStatsResponse(BaseModel):
+    profile_id: str
+    pending: int
+    running: int
+    completed: int
+    failed: int
+
+
 class TrainingDashboardResponse(BaseModel):
     summary: TrainingSummaryResponse
     leaks: TrainingLeaksResponse

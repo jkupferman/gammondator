@@ -150,8 +150,12 @@ async function loadTrainingSummary() {
 
 async function loadAnalysisJobs() {
   try {
-    const jobs = await api(`/analysis-jobs?profile_id=${encodeURIComponent(currentProfileId())}&limit=8`);
-    el.analysisJobs.textContent = JSON.stringify(jobs, null, 2);
+    const profile = encodeURIComponent(currentProfileId());
+    const [jobs, stats] = await Promise.all([
+      api(`/analysis-jobs?profile_id=${profile}&limit=8`),
+      api(`/analysis-jobs/stats?profile_id=${profile}`),
+    ]);
+    el.analysisJobs.textContent = `Stats:\\n${JSON.stringify(stats, null, 2)}\\n\\nJobs:\\n${JSON.stringify(jobs, null, 2)}`;
   } catch (err) {
     el.analysisJobs.textContent = `Unable to load jobs: ${err.message}`;
   }

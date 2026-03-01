@@ -459,6 +459,18 @@ def test_analysis_job_retry() -> None:
     assert payload["status"] == "pending"
 
 
+def test_analysis_job_stats_endpoint() -> None:
+    client.post("/analysis-jobs", json={"profile_id": "stats-user", "position": SAMPLE_PAYLOAD["position"]})
+    stats = client.get("/analysis-jobs/stats?profile_id=stats-user")
+    assert stats.status_code == 200
+    data = stats.json()
+    assert data["profile_id"] == "stats-user"
+    assert data["pending"] >= 1
+    assert data["running"] >= 0
+    assert data["completed"] >= 0
+    assert data["failed"] >= 0
+
+
 def test_training_dashboard_endpoint() -> None:
     response = client.get("/training/dashboard?profile_id=default")
     assert response.status_code == 200

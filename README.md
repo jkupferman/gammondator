@@ -25,6 +25,7 @@ Server runs at `http://127.0.0.1:8000`.
 - `GET /analyzer`
 - `POST /analysis-jobs`
 - `GET /analysis-jobs`
+- `GET /analysis-jobs/stats`
 - `GET /analysis-jobs/{job_id}`
 - `POST /analysis-jobs/{job_id}/run`
 - `POST /analysis-jobs/{job_id}/retry`
@@ -242,6 +243,7 @@ Inspect jobs:
 
 ```bash
 curl 'http://127.0.0.1:8000/analysis-jobs?profile_id=default'
+curl 'http://127.0.0.1:8000/analysis-jobs/stats?profile_id=default'
 curl 'http://127.0.0.1:8000/analysis-jobs/1'
 ```
 
