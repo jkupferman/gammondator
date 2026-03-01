@@ -554,7 +554,7 @@ function exactLegalMoveMatch() {
 
 function maybeAutoSubmitBuiltMove() {
   if (!state.position || state.animating || state.submittingMove) return;
-  if (!state.legalMovesLoaded || state.selectedFrom !== null || state.moveSteps.length === 0) return;
+  if (state.selectedFrom !== null || state.moveSteps.length === 0) return;
   const hasContinuation = getPrefixMatchingMoves().length > 0;
   const exactMatch = exactLegalMoveMatch();
   if (!exactMatch && hasContinuation) return;
