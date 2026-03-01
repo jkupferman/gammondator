@@ -22,6 +22,9 @@ const el = {
   rollBtn: document.getElementById("rollBtn"),
   sessionReportBtn: document.getElementById("sessionReportBtn"),
   closeSessionBtn: document.getElementById("closeSessionBtn"),
+  refreshSessionsBtn: document.getElementById("refreshSessionsBtn"),
+  sessionPicker: document.getElementById("sessionPicker"),
+  resumeSessionBtn: document.getElementById("resumeSessionBtn"),
   loadDrillBtn: document.getElementById("loadDrillBtn"),
   sessionStatus: document.getElementById("sessionStatus"),
   boardGrid: document.getElementById("boardGrid"),
@@ -612,6 +615,8 @@ function refreshButtons() {
   el.closeSessionBtn.disabled = !active;
   el.cubeCheckBtn.disabled = !active;
   el.queueAnalysisBtn.disabled = !active;
+  el.resumeSessionBtn.disabled = false;
+  el.refreshSessionsBtn.disabled = false;
 }
 
 async function loadTrainingSummary() {
@@ -636,6 +641,69 @@ async function loadAnalysisJobs() {
     el.analysisJobs.textContent = `Stats:\\n${JSON.stringify(stats, null, 2)}\\n\\nJobs:\\n${JSON.stringify(jobs, null, 2)}`;
   } catch (err) {
     el.analysisJobs.textContent = `Unable to load jobs: ${err.message}`;
+  }
+}
+
+function renderSessionPicker(sessions) {
+  el.sessionPicker.innerHTML = "";
+  if (!sessions.length) {
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "No sessions";
+    el.sessionPicker.appendChild(empty);
+    el.resumeSessionBtn.disabled = true;
+    return;
+  }
+
+  for (const session of sessions) {
+    const option = document.createElement("option");
+    option.value = String(session.session_id);
+    option.textContent = `#${session.session_id} ${session.status} moves:${session.move_count}`;
+    el.sessionPicker.appendChild(option);
+  }
+  el.resumeSessionBtn.disabled = false;
+}
+
+async function loadSessionList() {
+  try {
+    const profile = encodeURIComponent(currentProfileId());
+    const data = await api(`/sessions?profile_id=${profile}`);
+    const sessions = data.sessions || [];
+    renderSessionPicker(sessions);
+  } catch (err) {
+    notify(`Unable to load sessions: ${err.message}`, true);
+  }
+}
+
+async function resumeSelectedSession() {
+  const selected = Number(el.sessionPicker.value);
+  if (!selected) {
+    notify("Select a session to resume.", true);
+    return;
+  }
+  try {
+    const session = await api(`/sessions/${selected}`);
+    if (session.status === "closed") {
+      notify(`Session #${selected} is closed. Start a new one.`, true);
+      return;
+    }
+    state.sessionId = session.session_id;
+    state.position = session.current_position;
+    state.moveSteps = [];
+    state.selectedFrom = null;
+    state.moveLog = [];
+    clearMoveHighlight(false);
+    el.sessionStatus.textContent = `Session #${state.sessionId} (${session.status})`;
+    refreshButtons();
+    renderBoard();
+    renderMoveBuilder();
+    renderMoveLog();
+    await refreshLegalMoves(true);
+    await loadTrainingSummary();
+    await loadAnalysisJobs();
+    notify(`Resumed session #${state.sessionId}.`);
+  } catch (err) {
+    notify(err.message, true);
   }
 }
 
@@ -680,6 +748,7 @@ async function newSession() {
     await refreshLegalMoves(true);
     await loadTrainingSummary();
     await loadAnalysisJobs();
+    await loadSessionList();
   } catch (err) {
     notify(err.message, true);
   }
@@ -787,6 +856,7 @@ async function closeSession() {
     renderLegalMoves();
     el.cubeFeedback.textContent = "No cube decision checked yet.";
     await loadAnalysisJobs();
+    await loadSessionList();
   } catch (err) {
     notify(err.message, true);
   }
@@ -989,6 +1059,8 @@ el.undoStepBtn.addEventListener("click", undoMoveStep);
 el.clearMoveBtn.addEventListener("click", clearMove);
 el.sessionReportBtn.addEventListener("click", loadSessionReport);
 el.closeSessionBtn.addEventListener("click", closeSession);
+el.refreshSessionsBtn.addEventListener("click", loadSessionList);
+el.resumeSessionBtn.addEventListener("click", resumeSelectedSession);
 el.cubeCheckBtn.addEventListener("click", checkCubeDecision);
 el.loadDrillBtn.addEventListener("click", loadDrill);
 el.submitDrillBtn.addEventListener("click", submitDrillAttempt);
@@ -1034,3 +1106,4 @@ renderMoveLog();
 renderDrillStatus();
 loadTrainingSummary();
 loadAnalysisJobs();
+loadSessionList();
