@@ -123,19 +123,25 @@ function formatMoveAnalysisSummary(analysis) {
     isOptimal && played.notation !== best.notation
       ? `${best.notation} (equivalent line)`
       : best.notation;
+  const equivalentButDifferentNotation = isOptimal && played.notation !== best.notation;
   const winPctLine =
     winDelta === null
       ? `Win %: ${currentWinPct.toFixed(1)}%`
       : `Win %: ${currentWinPct.toFixed(1)}% (${winDelta >= 0 ? "+" : ""}${winDelta.toFixed(1)}%)`;
+  const nextStepLine = equivalentButDifferentNotation
+    ? "Next step: Same strength as best move; notation order is just different."
+    : played.notation === best.notation
+      ? "Next step: Keep prioritizing safety and tempo like this."
+      : `Next step: Compare your line against ${best.notation} before submitting.`;
   state.lastHumanWinPct = currentWinPct;
   return [
     qualityTitle,
     `You played: ${played.notation}`,
     `Best line: ${bestLine}`,
-    winPctLine,
     `Equity loss: ${loss.toFixed(3)}. ${lossHint}`,
+    winPctLine.replace("Win %", "Win Pct"),
     `Why: ${firstReason}`,
-    `Next step: ${nextStep}`,
+    nextStepLine,
   ].join("\n");
 }
 
