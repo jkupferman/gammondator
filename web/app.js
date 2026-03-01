@@ -10,6 +10,8 @@ const state = {
   submittingMove: false,
   animating: false,
   lastHumanWinPct: null,
+  transientStatus: null,
+  transientStatusTimer: null,
 };
 
 const el = {
@@ -38,6 +40,20 @@ async function api(path, options = {}) {
 
 function notify(message, isError = false) {
   el.feedback.textContent = isError ? `Error: ${message}` : message;
+}
+
+function setTransientStatus(message, isError = false, durationMs = 1800) {
+  if (state.transientStatusTimer !== null) {
+    clearTimeout(state.transientStatusTimer);
+    state.transientStatusTimer = null;
+  }
+  state.transientStatus = isError ? `Error: ${message}` : message;
+  renderStatus();
+  state.transientStatusTimer = window.setTimeout(() => {
+    state.transientStatus = null;
+    state.transientStatusTimer = null;
+    renderStatus();
+  }, durationMs);
 }
 
 function sleep(ms) {
@@ -173,22 +189,22 @@ function renderStatus() {
   el.turnStatus.textContent = `Turn: ${state.position.turn}`;
   el.diceStatus.textContent = `Dice: ${state.position.dice[0]}-${state.position.dice[1]}`;
 
+  let statusText = "Your turn (black). Select checker to move.";
   if (state.submittingMove) {
-    el.moveStatus.textContent = "Submitting move...";
+    statusText = "Submitting move...";
   } else if (state.animating) {
-    el.moveStatus.textContent = "Animating move...";
+    statusText = "Animating move...";
   } else if (state.position.turn !== HUMAN_SIDE) {
-    el.moveStatus.textContent = "AI is playing white...";
+    statusText = "AI is playing white...";
   } else if (!state.legalMovesLoaded) {
-    el.moveStatus.textContent = "Loading legal moves...";
+    statusText = "Loading legal moves...";
   } else if (state.selectedFrom !== null) {
-    el.moveStatus.textContent = `Selected ${state.selectedFrom}. Pick destination.`;
+    statusText = `Selected ${state.selectedFrom}. Pick destination.`;
   } else if (state.moveSteps.length > 0) {
     const notation = state.moveSteps.map((step) => `${step.from_point}/${step.to_point}`).join(" ");
-    el.moveStatus.textContent = `Building move: ${notation}`;
-  } else {
-    el.moveStatus.textContent = "Your turn (black). Select checker to move.";
+    statusText = `Building move: ${notation}`;
   }
+  el.moveStatus.textContent = state.transientStatus || statusText;
 
   el.tipBtn.disabled =
     !state.position ||
@@ -446,7 +462,7 @@ function canChooseSource(point) {
 
 function chooseSource(point) {
   if (!canChooseSource(point)) {
-    notify("That checker is not legal for this step.", true);
+    setTransientStatus("That checker is not legal for this step.", true);
     return;
   }
   if (state.selectedFrom === point) {
@@ -462,7 +478,7 @@ function chooseDestination(point) {
 
   const validTargets = getValidTargetsForSelection();
   if (state.legalMoves.length > 0 && (validTargets.size === 0 || !validTargets.has(point))) {
-    notify("That destination is not legal for the selected checker.", true);
+    setTransientStatus("That destination is not legal for the selected checker.", true);
     return;
   }
 
