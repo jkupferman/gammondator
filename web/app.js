@@ -31,6 +31,7 @@ const el = {
   turnTimelineBtn: document.getElementById("turnTimelineBtn"),
   downloadTimelineBtn: document.getElementById("downloadTimelineBtn"),
   timelineLimit: document.getElementById("timelineLimit"),
+  turnActorFilter: document.getElementById("turnActorFilter"),
   closeSessionBtn: document.getElementById("closeSessionBtn"),
   refreshSessionsBtn: document.getElementById("refreshSessionsBtn"),
   sessionPicker: document.getElementById("sessionPicker"),
@@ -81,6 +82,7 @@ function savePreferences() {
   window.localStorage.setItem("gammondator.autoAi", el.autoAiToggle.checked ? "1" : "0");
   window.localStorage.setItem("gammondator.animationMs", String(el.animationMs.value || "320"));
   window.localStorage.setItem("gammondator.timelineLimit", String(el.timelineLimit.value || "300"));
+  window.localStorage.setItem("gammondator.turnActorFilter", el.turnActorFilter.value || "all");
 }
 
 function loadPreferences() {
@@ -97,6 +99,10 @@ function loadPreferences() {
   const timelineLimit = window.localStorage.getItem("gammondator.timelineLimit");
   if (timelineLimit) {
     el.timelineLimit.value = timelineLimit;
+  }
+  const turnActorFilter = window.localStorage.getItem("gammondator.turnActorFilter");
+  if (turnActorFilter) {
+    el.turnActorFilter.value = turnActorFilter;
   }
 }
 
@@ -144,6 +150,11 @@ function currentTimelineLimit() {
   const parsed = Number(el.timelineLimit.value);
   if (!Number.isFinite(parsed)) return 300;
   return Math.max(20, Math.min(1000, Math.round(parsed)));
+}
+
+function currentTurnActorFilter() {
+  const value = el.turnActorFilter.value;
+  return value === "human" || value === "ai" ? value : "all";
 }
 
 function clonePosition(position) {
@@ -905,7 +916,9 @@ function renderSessionPicker(sessions) {
 }
 
 async function loadSessionTurns(sessionId) {
-  const data = await api(`/sessions/${sessionId}/turns?limit=300`);
+  const actor = currentTurnActorFilter();
+  const actorQuery = actor === "all" ? "" : `&actor=${encodeURIComponent(actor)}`;
+  const data = await api(`/sessions/${sessionId}/turns?limit=300${actorQuery}`);
   const turns = data.turns || [];
   state.moveLog = turns.map((turn) => {
     const actor = turn.actor === "ai" ? "AI" : "You";
@@ -1243,7 +1256,9 @@ async function loadSessionReport() {
 async function loadTurnTimeline() {
   if (!state.sessionId) return;
   try {
-    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=${currentTimelineLimit()}`);
+    const actor = currentTurnActorFilter();
+    const actorQuery = actor === "all" ? "" : `&actor=${encodeURIComponent(actor)}`;
+    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=${currentTimelineLimit()}${actorQuery}`);
     if (!response.ok) {
       const body = await response.text();
       throw new Error(body || `HTTP ${response.status}`);
@@ -1258,7 +1273,9 @@ async function loadTurnTimeline() {
 async function downloadTurnTimeline() {
   if (!state.sessionId) return;
   try {
-    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=${currentTimelineLimit()}`);
+    const actor = currentTurnActorFilter();
+    const actorQuery = actor === "all" ? "" : `&actor=${encodeURIComponent(actor)}`;
+    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=${currentTimelineLimit()}${actorQuery}`);
     if (!response.ok) {
       const body = await response.text();
       throw new Error(body || `HTTP ${response.status}`);
@@ -1443,6 +1460,12 @@ el.profileId.addEventListener("change", async () => {
 el.autoAiToggle.addEventListener("change", savePreferences);
 el.animationMs.addEventListener("change", savePreferences);
 el.timelineLimit.addEventListener("change", savePreferences);
+el.turnActorFilter.addEventListener("change", async () => {
+  savePreferences();
+  if (state.sessionId) {
+    await loadSessionTurns(state.sessionId);
+  }
+});
 el.toOffBtn.addEventListener("dragover", onOffDragOver);
 el.toOffBtn.addEventListener("drop", onOffDrop);
 el.toOffBtn.addEventListener("touchend", (event) => {

@@ -214,22 +214,40 @@ class SessionStore:
             "current_position": new_position,
         }
 
-    def list_turns(self, session_id: int, limit: int = 200) -> list[dict[str, object]]:
+    def list_turns(
+        self,
+        session_id: int,
+        limit: int = 200,
+        actor: str | None = None,
+    ) -> list[dict[str, object]]:
         safe_limit = max(1, min(limit, 500))
+        actor_filter = actor if actor in {"human", "ai"} else None
         with self._connect() as conn:
             session = conn.execute("SELECT id FROM sessions WHERE id = ?", (session_id,)).fetchone()
             if session is None:
                 raise ValueError(f"session {session_id} not found")
-            rows = conn.execute(
-                """
-                SELECT id, created_at, turn, actor, dice_json, played_notation, quality, equity_loss, analysis_json
-                FROM session_turns
-                WHERE session_id = ?
-                ORDER BY id ASC
-                LIMIT ?
-                """,
-                (session_id, safe_limit),
-            ).fetchall()
+            if actor_filter:
+                rows = conn.execute(
+                    """
+                    SELECT id, created_at, turn, actor, dice_json, played_notation, quality, equity_loss, analysis_json
+                    FROM session_turns
+                    WHERE session_id = ? AND actor = ?
+                    ORDER BY id ASC
+                    LIMIT ?
+                    """,
+                    (session_id, actor_filter, safe_limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT id, created_at, turn, actor, dice_json, played_notation, quality, equity_loss, analysis_json
+                    FROM session_turns
+                    WHERE session_id = ?
+                    ORDER BY id ASC
+                    LIMIT ?
+                    """,
+                    (session_id, safe_limit),
+                ).fetchall()
 
         turns: list[dict[str, object]] = []
         for row in rows:

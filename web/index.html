@@ -34,6 +34,11 @@
         <button id="sessionReportBtn" disabled>Session Report</button>
         <label>Timeline Limit:</label>
         <input id="timelineLimit" type="number" min="20" max="1000" step="10" value="300" />
+        <select id="turnActorFilter">
+          <option value="all">All Turns</option>
+          <option value="human">Your Turns</option>
+          <option value="ai">AI Turns</option>
+        </select>
         <button id="turnTimelineBtn" disabled>Turn Timeline</button>
         <button id="downloadTimelineBtn" disabled>Download Timeline</button>
         <button id="closeSessionBtn" disabled>Close Session</button>

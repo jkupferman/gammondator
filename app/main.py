@@ -366,9 +366,13 @@ def session_report_endpoint(session_id: int, top_n: int = 5) -> SessionReportRes
 
 
 @app.get("/sessions/{session_id}/turns", response_model=SessionTurnListResponse)
-def session_turns_endpoint(session_id: int, limit: int = 200) -> SessionTurnListResponse:
+def session_turns_endpoint(
+    session_id: int,
+    limit: int = 200,
+    actor: str | None = None,
+) -> SessionTurnListResponse:
     try:
-        turns = session_store.list_turns(session_id=session_id, limit=limit)
+        turns = session_store.list_turns(session_id=session_id, limit=limit, actor=actor)
         return SessionTurnListResponse(
             session_id=session_id,
             turns=[SessionTurnItemResponse.model_validate(turn) for turn in turns],
@@ -378,8 +382,12 @@ def session_turns_endpoint(session_id: int, limit: int = 200) -> SessionTurnList
 
 
 @app.get("/sessions/{session_id}/turns/markdown", response_class=PlainTextResponse)
-def session_turns_markdown_endpoint(session_id: int, limit: int = 200) -> str:
-    turns_response = session_turns_endpoint(session_id=session_id, limit=limit)
+def session_turns_markdown_endpoint(
+    session_id: int,
+    limit: int = 200,
+    actor: str | None = None,
+) -> str:
+    turns_response = session_turns_endpoint(session_id=session_id, limit=limit, actor=actor)
     lines = [
         f"# Session {session_id} Turn Timeline",
         "",

@@ -244,6 +244,41 @@ def test_session_turns_markdown_endpoint() -> None:
     assert "Played: 24/18 8/7" in body
 
 
+def test_session_turns_actor_filter() -> None:
+    create_response = client.post(
+        "/sessions",
+        json={"initial_position": SAMPLE_PAYLOAD["position"]},
+    )
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+
+    play_response = client.post(
+        f"/sessions/{session_id}/play-turn",
+        json={
+            "played_move": SAMPLE_PAYLOAD["played_move"],
+            "next_dice": [3, 2],
+            "record_training": True,
+        },
+    )
+    assert play_response.status_code == 200
+    ai_response = client.post(
+        f"/sessions/{session_id}/ai-turn",
+        json={"next_dice": [4, 2], "apply_move": True},
+    )
+    assert ai_response.status_code == 200
+
+    human_turns = client.get(f"/sessions/{session_id}/turns?actor=human")
+    assert human_turns.status_code == 200
+    human_payload = human_turns.json()["turns"]
+    assert len(human_payload) >= 1
+    assert all(turn["actor"] == "human" for turn in human_payload)
+
+    ai_turns = client.get(f"/sessions/{session_id}/turns?actor=ai")
+    assert ai_turns.status_code == 200
+    ai_payload = ai_turns.json()["turns"]
+    assert len(ai_payload) >= 1
+    assert all(turn["actor"] == "ai" for turn in ai_payload)
+
 def test_session_turns_handles_invalid_dice_json() -> None:
     create_response = client.post(
         "/sessions",
