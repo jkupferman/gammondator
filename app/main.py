@@ -43,6 +43,7 @@ from app.schemas import (
     SessionReportResponse,
     SessionTurnListResponse,
     SessionTurnItemResponse,
+    SessionTurnReplayResponse,
     SessionPlayTurnRequest,
     SessionPlayTurnResponse,
     SessionListResponse,
@@ -378,6 +379,15 @@ def session_turns_endpoint(
             session_id=session_id,
             turns=[SessionTurnItemResponse.model_validate(turn) for turn in turns],
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/sessions/{session_id}/turns/{turn_id}/replay", response_model=SessionTurnReplayResponse)
+def session_turn_replay_endpoint(session_id: int, turn_id: int) -> SessionTurnReplayResponse:
+    try:
+        replay = session_store.get_turn_replay(session_id=session_id, turn_id=turn_id)
+        return SessionTurnReplayResponse.model_validate(replay)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -773,6 +783,7 @@ def play_session_turn_endpoint(
             previous_position=current_position,
             new_position=next_position,
             analysis=analysis,
+            played_move=payload.played_move,
             actor="human",
         )
         return SessionPlayTurnResponse(
@@ -844,6 +855,7 @@ def play_session_ai_turn_endpoint(
             previous_position=current_position,
             new_position=next_position,
             analysis=applied_analysis,
+            played_move=selected,
             actor="ai",
         )
         return SessionAIMoveResponse(

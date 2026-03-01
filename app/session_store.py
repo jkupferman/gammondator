@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.schemas import AnalyzeMoveResponse, Position
+from app.schemas import AnalyzeMoveResponse, Move, Position
 
 
 class SessionStore:
@@ -48,6 +48,8 @@ class SessionStore:
                     turn TEXT NOT NULL,
                     actor TEXT NOT NULL DEFAULT 'human',
                     dice_json TEXT,
+                    previous_position_json TEXT,
+                    played_move_json TEXT,
                     played_notation TEXT NOT NULL,
                     quality TEXT NOT NULL,
                     equity_loss REAL NOT NULL,
@@ -63,6 +65,10 @@ class SessionStore:
                 )
             if "dice_json" not in turn_columns:
                 conn.execute("ALTER TABLE session_turns ADD COLUMN dice_json TEXT")
+            if "previous_position_json" not in turn_columns:
+                conn.execute("ALTER TABLE session_turns ADD COLUMN previous_position_json TEXT")
+            if "played_move_json" not in turn_columns:
+                conn.execute("ALTER TABLE session_turns ADD COLUMN played_move_json TEXT")
             conn.commit()
 
     def create_session(self, initial_position: Position, profile_id: str = "default") -> dict[str, object]:
@@ -155,6 +161,7 @@ class SessionStore:
         previous_position: Position,
         new_position: Position,
         analysis: AnalyzeMoveResponse,
+        played_move: Move,
         actor: str = "human",
     ) -> dict[str, object]:
         now = datetime.now(tz=timezone.utc).isoformat()
@@ -188,11 +195,13 @@ class SessionStore:
                     turn,
                     actor,
                     dice_json,
+                    previous_position_json,
+                    played_move_json,
                     played_notation,
                     quality,
                     equity_loss,
                     analysis_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
@@ -200,6 +209,8 @@ class SessionStore:
                     previous_position.turn,
                     actor,
                     json.dumps([int(previous_position.dice[0]), int(previous_position.dice[1])]),
+                    previous_position.model_dump_json(),
+                    played_move.model_dump_json(),
                     analysis.played_move.notation,
                     analysis.played_move.quality,
                     float(analysis.played_move.delta_vs_best),
@@ -278,6 +289,31 @@ class SessionStore:
                 }
             )
         return turns
+
+    def get_turn_replay(self, session_id: int, turn_id: int) -> dict[str, object]:
+        with self._connect() as conn:
+            session = conn.execute("SELECT id FROM sessions WHERE id = ?", (session_id,)).fetchone()
+            if session is None:
+                raise ValueError(f"session {session_id} not found")
+            row = conn.execute(
+                """
+                SELECT id, previous_position_json, played_move_json
+                FROM session_turns
+                WHERE session_id = ? AND id = ?
+                """,
+                (session_id, turn_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"turn {turn_id} not found for session {session_id}")
+            if not row["previous_position_json"] or not row["played_move_json"]:
+                raise ValueError(f"turn {turn_id} replay data unavailable")
+
+        return {
+            "session_id": session_id,
+            "turn_id": int(row["id"]),
+            "previous_position": Position.model_validate_json(str(row["previous_position_json"])),
+            "played_move": Move.model_validate_json(str(row["played_move_json"])),
+        }
 
     def set_position(self, session_id: int, position: Position) -> dict[str, object]:
         now = datetime.now(tz=timezone.utc).isoformat()

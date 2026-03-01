@@ -13,6 +13,7 @@ const state = {
   lastMoveHighlight: null,
   highlightTimerId: null,
   moveLog: [],
+  sessionTurns: [],
   currentDrill: null,
 };
 
@@ -54,6 +55,8 @@ const el = {
   legalMoves: document.getElementById("legalMoves"),
   feedback: document.getElementById("feedback"),
   moveLog: document.getElementById("moveLog"),
+  turnReplayPicker: document.getElementById("turnReplayPicker"),
+  replayTurnBtn: document.getElementById("replayTurnBtn"),
   trainingSummary: document.getElementById("trainingSummary"),
   cubeAction: document.getElementById("cubeAction"),
   cubeCheckBtn: document.getElementById("cubeCheckBtn"),
@@ -838,6 +841,26 @@ function renderMoveLog() {
   el.moveLog.textContent = lines.join("\n");
 }
 
+function renderTurnReplayPicker() {
+  el.turnReplayPicker.innerHTML = "";
+  if (!state.sessionTurns.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No turn replay data";
+    el.turnReplayPicker.appendChild(option);
+    el.replayTurnBtn.disabled = true;
+    return;
+  }
+  for (const turn of state.sessionTurns) {
+    const option = document.createElement("option");
+    option.value = String(turn.turn_id);
+    const actor = turn.actor === "ai" ? "AI" : "You";
+    option.textContent = `Turn ${turn.turn_id}: ${actor} ${turn.played_notation}`;
+    el.turnReplayPicker.appendChild(option);
+  }
+  el.replayTurnBtn.disabled = state.animating;
+}
+
 function formatMoveAnalysisSummary(analysis) {
   if (!analysis || !analysis.played_move || !analysis.best_move) {
     return "No move analysis available.";
@@ -868,6 +891,7 @@ function refreshButtons() {
   el.queueAnalysisBtn.disabled = !active || blocked;
   el.resumeSessionBtn.disabled = false;
   el.refreshSessionsBtn.disabled = blocked;
+  el.replayTurnBtn.disabled = blocked || state.sessionTurns.length === 0;
 }
 
 async function loadTrainingSummary() {
@@ -920,6 +944,7 @@ async function loadSessionTurns(sessionId) {
   const actorQuery = actor === "all" ? "" : `&actor=${encodeURIComponent(actor)}`;
   const data = await api(`/sessions/${sessionId}/turns?limit=300${actorQuery}`);
   const turns = data.turns || [];
+  state.sessionTurns = turns;
   state.moveLog = turns.map((turn) => {
     const actor = turn.actor === "ai" ? "AI" : "You";
     const noteParts = [`${turn.quality} ${Number(turn.equity_loss).toFixed(3)}`];
@@ -934,6 +959,7 @@ async function loadSessionTurns(sessionId) {
     };
   });
   renderMoveLog();
+  renderTurnReplayPicker();
 }
 
 async function loadSessionList() {
@@ -964,6 +990,7 @@ async function resumeSelectedSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
+    state.sessionTurns = [];
     state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
@@ -1012,6 +1039,7 @@ async function newSession() {
     state.selectedFrom = null;
     state.legalMoves = [];
     state.moveLog = [];
+    state.sessionTurns = [];
     state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
@@ -1020,6 +1048,7 @@ async function newSession() {
     renderBoard();
     renderMoveBuilder();
     renderMoveLog();
+    renderTurnReplayPicker();
     notify("Session created.");
     await refreshLegalMoves(true);
     await loadTrainingSummary();
@@ -1066,6 +1095,7 @@ async function submitMove() {
     const summaryText = formatMoveAnalysisSummary(played.analysis);
     notify(stepSummary.hits ? `${summaryText}\nHits: ${stepSummary.hits}` : summaryText);
     await refreshLegalMoves(true);
+    await loadSessionTurns(state.sessionId);
     await loadTrainingSummary();
     await loadAnalysisJobs();
     if (el.autoAiToggle.checked && state.sessionId) {
@@ -1101,6 +1131,7 @@ async function aiTurn(showNotify = true) {
     setSessionStatusLabel("active", played.move_count);
     setMoveHighlightFromSteps(aiSteps);
     await refreshLegalMoves(true);
+    await loadSessionTurns(state.sessionId);
     if (showNotify) {
       notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
     }
@@ -1163,6 +1194,7 @@ async function closeSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
+    state.sessionTurns = [];
     state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
@@ -1171,6 +1203,7 @@ async function closeSession() {
     renderBoard();
     renderMoveBuilder();
     renderMoveLog();
+    renderTurnReplayPicker();
     renderLegalMoves();
     el.cubeFeedback.textContent = "No cube decision checked yet.";
     await loadAnalysisJobs();
@@ -1230,6 +1263,43 @@ async function replayLastMove() {
     state.lastReplay.finalPosition,
   );
   setMoveHighlightFromSteps(state.lastReplay.steps);
+}
+
+function projectPositionAfterSteps(startPosition, steps) {
+  let preview = clonePosition(startPosition);
+  const side = startPosition.turn;
+  for (const step of steps) {
+    preview = applyAnimatedStep(preview, step, side).position;
+  }
+  return preview;
+}
+
+async function replaySelectedTurn() {
+  if (!state.sessionId || state.animating) return;
+  const selectedTurnId = Number(el.turnReplayPicker.value);
+  if (!selectedTurnId) {
+    notify("Select a turn to replay.", true);
+    return;
+  }
+  const restorePosition = state.position ? clonePosition(state.position) : null;
+  try {
+    const replay = await api(`/sessions/${state.sessionId}/turns/${selectedTurnId}/replay`);
+    const steps = replay.played_move.steps || [];
+    const endPosition = projectPositionAfterSteps(replay.previous_position, steps);
+    await animateMoveReplay(replay.previous_position, steps, endPosition);
+    setMoveHighlightFromSteps(steps);
+    if (restorePosition) {
+      state.position = restorePosition;
+      renderBoard();
+    }
+    notify(`Replayed turn ${selectedTurnId}: ${replay.played_move.notation}`);
+  } catch (err) {
+    if (restorePosition) {
+      state.position = restorePosition;
+      renderBoard();
+    }
+    notify(err.message, true);
+  }
 }
 
 function undoMoveStep() {
@@ -1331,11 +1401,13 @@ async function loadDrill() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
+    state.sessionTurns = [];
     state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
     renderMoveBuilder();
     renderMoveLog();
+    renderTurnReplayPicker();
     await refreshLegalMoves(true);
     renderDrillStatus();
     notify("Drill loaded. Enter your best move notation and submit.");
@@ -1438,6 +1510,7 @@ el.toOffBtn.addEventListener("click", chooseToOff);
 el.undoStepBtn.addEventListener("click", undoMoveStep);
 el.clearMoveBtn.addEventListener("click", clearMove);
 el.replayMoveBtn.addEventListener("click", replayLastMove);
+el.replayTurnBtn.addEventListener("click", replaySelectedTurn);
 el.sessionReportBtn.addEventListener("click", loadSessionReport);
 el.turnTimelineBtn.addEventListener("click", loadTurnTimeline);
 el.downloadTimelineBtn.addEventListener("click", downloadTurnTimeline);
@@ -1522,6 +1595,7 @@ loadPreferences();
 renderBoard();
 renderMoveBuilder();
 renderMoveLog();
+renderTurnReplayPicker();
 renderDrillStatus();
 loadTrainingSummary();
 loadAnalysisJobs();

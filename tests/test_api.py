@@ -119,6 +119,14 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert turns_payload["turns"][0]["actor"] == "human"
     assert turns_payload["turns"][0]["dice"] == [6, 1]
     assert "played_notation" in turns_payload["turns"][0]
+    replay_response = client.get(
+        f"/sessions/{session_id}/turns/{turns_payload['turns'][0]['turn_id']}/replay"
+    )
+    assert replay_response.status_code == 200
+    replay = replay_response.json()
+    assert replay["session_id"] == session_id
+    assert replay["played_move"]["notation"] == "24/18 8/7"
+    assert len(replay["played_move"]["steps"]) == 2
 
     close_response = client.post(f"/sessions/{session_id}/close")
     assert close_response.status_code == 200
@@ -215,6 +223,24 @@ def test_session_turns_not_found() -> None:
 
 def test_session_turns_markdown_not_found() -> None:
     response = client.get("/sessions/999999/turns/markdown")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
+
+
+def test_session_turn_replay_not_found() -> None:
+    response = client.get("/sessions/999999/turns/1/replay")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
+
+
+def test_session_turn_replay_turn_not_found_for_existing_session() -> None:
+    create_response = client.post(
+        "/sessions",
+        json={"initial_position": SAMPLE_PAYLOAD["position"]},
+    )
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+    response = client.get(f"/sessions/{session_id}/turns/999999/replay")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"]
 

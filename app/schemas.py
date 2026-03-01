@@ -288,6 +288,13 @@ class SessionTurnListResponse(BaseModel):
     turns: list[SessionTurnItemResponse]
 
 
+class SessionTurnReplayResponse(BaseModel):
+    session_id: int
+    turn_id: int
+    previous_position: Position
+    played_move: Move
+
+
 class SessionCloseResponse(BaseModel):
     session_id: int
     status: str
