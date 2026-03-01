@@ -81,6 +81,9 @@ Gammondator solves this by running in a live game loop:
 - GNUbg-backed cube recommendation path with heuristic fallback.
 - Local bridge stub script for integration testing.
 - Web board MVP served from backend root (`/`) with session gameplay controls.
+- Rich board interaction layer: drag/drop, touch input, legal target highlighting, and move source/target flash feedback.
+- Session UX improvements: in-session move log, session picker/resume, and auto AI reply toggle.
+- Persisted frontend preferences (`profile_id`, auto-AI) in browser storage.
 - Automated tests for API + backend behavior.
 
 ## Planned Features
@@ -159,11 +162,11 @@ Gammondator solves this by running in a live game loop:
 - Favor deterministic behavior in MVP paths.
 
 ## Immediate Next Steps
-1. Replace heuristic cube mode with engine-backed cube decision analysis.
-2. Add rollout-backed evaluation mode in GNUbg bridge for deeper post-game review.
-3. Add user account/profile scoping for training history and sessions.
-4. Build drill-mode endpoints that resurface personal high-equity-loss positions.
-5. Expand frontend board UX (drag/drop, checker animations, mobile polish).
+1. Add checker movement animation (step-by-step motion, not only source/target flash).
+2. Add explicit hit/blot event visualization and move replay controls.
+3. Add richer session timeline data from backend for complete move reconstruction on resume.
+4. Improve mobile board ergonomics (larger touch targets, point zoom, haptics where available).
+5. Add profile-level goals and trend charts in training dashboard.
 
 ## Project Conventions
 - Branch naming: `codex/*`.

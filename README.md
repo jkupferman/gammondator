@@ -8,6 +8,18 @@ Gammondator is a backgammon decision-coach backend. It analyzes your played move
 
 This is an MVP foundation designed to plug into a stronger engine (e.g. GNU Backgammon) later.
 
+## Web Trainer Highlights
+
+- Rendered backgammon board with CSS points, bar, and off trays.
+- Click/tap/drag move input with legal source/target enforcement.
+- Legal destination highlighting for selected checkers.
+- Session gameplay loop controls (new, roll, AI turn, close, report).
+- Session resume picker for existing profile sessions.
+- Move log with quality/equity-loss tags.
+- Move feedback summary in readable coaching format.
+- Auto AI reply toggle for faster training cycles.
+- Training dashboard, cube trainer, drill workflow, and analysis queue controls.
+
 ## Quick Start
 
 ```bash
