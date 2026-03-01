@@ -107,6 +107,26 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert report["total_turns"] >= 1
     assert isinstance(report["top_mistakes"], list)
 
+    close_response = client.post(f"/sessions/{session_id}/close")
+    assert close_response.status_code == 200
+    assert close_response.json()["status"] == "completed"
+
+    rejected_play = client.post(
+        f"/sessions/{session_id}/play-turn",
+        json={
+            "played_move": {
+                "notation": "24/18 8/7",
+                "steps": [
+                    {"from_point": 24, "to_point": 18},
+                    {"from_point": 8, "to_point": 7},
+                ],
+            },
+            "record_training": True,
+        },
+    )
+    assert rejected_play.status_code == 400
+    assert "not active" in rejected_play.json()["detail"]
+
 
 def test_session_ai_turn() -> None:
     create_response = client.post(
@@ -128,6 +148,21 @@ def test_session_ai_turn() -> None:
     assert len(data["top_moves"]) > 0
     assert data["current_position"]["turn"] == "black"
     assert data["current_position"]["dice"] == [4, 2]
+
+
+def test_session_roll_endpoint() -> None:
+    create_response = client.post(
+        "/sessions",
+        json={"initial_position": SAMPLE_PAYLOAD["position"]},
+    )
+    session_id = create_response.json()["session_id"]
+    response = client.post(f"/sessions/{session_id}/roll")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["session_id"] == session_id
+    assert 1 <= data["dice"][0] <= 6
+    assert 1 <= data["dice"][1] <= 6
+    assert data["position"]["dice"] == data["dice"]
 
 
 def test_analyze_move_returns_ranked_feedback() -> None:

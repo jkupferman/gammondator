@@ -102,11 +102,13 @@ class SessionStore:
 
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT move_count FROM sessions WHERE id = ?",
+                "SELECT move_count, status FROM sessions WHERE id = ?",
                 (session_id,),
             ).fetchone()
             if row is None:
                 raise ValueError(f"session {session_id} not found")
+            if str(row["status"]) != "active":
+                raise ValueError(f"session {session_id} is not active")
 
             next_move_count = int(row["move_count"]) + 1
 
@@ -148,6 +150,52 @@ class SessionStore:
             "move_count": next_move_count,
             "current_position": new_position,
         }
+
+    def set_position(self, session_id: int, position: Position) -> dict[str, object]:
+        now = datetime.now(tz=timezone.utc).isoformat()
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, status, move_count FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"session {session_id} not found")
+            if str(row["status"]) != "active":
+                raise ValueError(f"session {session_id} is not active")
+
+            conn.execute(
+                """
+                UPDATE sessions
+                SET updated_at = ?, current_position_json = ?
+                WHERE id = ?
+                """,
+                (now, json.dumps(position.model_dump()), session_id),
+            )
+            conn.commit()
+
+        return {
+            "session_id": int(row["id"]),
+            "move_count": int(row["move_count"]),
+            "current_position": position,
+        }
+
+    def close_session(self, session_id: int) -> dict[str, object]:
+        now = datetime.now(tz=timezone.utc).isoformat()
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"session {session_id} not found")
+
+            conn.execute(
+                "UPDATE sessions SET status = 'completed', updated_at = ? WHERE id = ?",
+                (now, session_id),
+            )
+            conn.commit()
+
+        return {"session_id": int(row["id"]), "status": "completed"}
 
     def session_report(self, session_id: int, top_n: int = 5) -> dict[str, object]:
         safe_limit = max(1, min(top_n, 20))

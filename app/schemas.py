@@ -192,12 +192,14 @@ class SessionStateResponse(BaseModel):
 
 class SessionPlayTurnRequest(BaseModel):
     played_move: Move
-    next_dice: tuple[int, int]
+    next_dice: tuple[int, int] | None = None
     record_training: bool = True
 
     @field_validator("next_dice")
     @classmethod
-    def validate_next_dice(cls, value: tuple[int, int]) -> tuple[int, int]:
+    def validate_next_dice(cls, value: tuple[int, int] | None) -> tuple[int, int] | None:
+        if value is None:
+            return None
         d1, d2 = value
         if not (1 <= d1 <= 6 and 1 <= d2 <= 6):
             raise ValueError("next_dice must be between 1 and 6")
@@ -212,12 +214,14 @@ class SessionPlayTurnResponse(BaseModel):
 
 
 class SessionAIMoveRequest(BaseModel):
-    next_dice: tuple[int, int]
+    next_dice: tuple[int, int] | None = None
     apply_move: bool = True
 
     @field_validator("next_dice")
     @classmethod
-    def validate_next_dice(cls, value: tuple[int, int]) -> tuple[int, int]:
+    def validate_next_dice(cls, value: tuple[int, int] | None) -> tuple[int, int] | None:
+        if value is None:
+            return None
         d1, d2 = value
         if not (1 <= d1 <= 6 and 1 <= d2 <= 6):
             raise ValueError("next_dice must be between 1 and 6")
@@ -255,6 +259,17 @@ class SessionReportResponse(BaseModel):
     mistakes: int
     blunders: int
     top_mistakes: list[SessionMistakeItem]
+
+
+class SessionCloseResponse(BaseModel):
+    session_id: int
+    status: str
+
+
+class SessionRollResponse(BaseModel):
+    session_id: int
+    dice: tuple[int, int]
+    position: Position
 
 
 class CubeDecisionRequest(BaseModel):

@@ -13,7 +13,9 @@ const el = {
   newSessionBtn: document.getElementById("newSessionBtn"),
   loadLegalBtn: document.getElementById("loadLegalBtn"),
   aiTurnBtn: document.getElementById("aiTurnBtn"),
+  rollBtn: document.getElementById("rollBtn"),
   sessionReportBtn: document.getElementById("sessionReportBtn"),
+  closeSessionBtn: document.getElementById("closeSessionBtn"),
   loadDrillBtn: document.getElementById("loadDrillBtn"),
   sessionStatus: document.getElementById("sessionStatus"),
   boardGrid: document.getElementById("boardGrid"),
@@ -113,7 +115,9 @@ function refreshButtons() {
   const active = Boolean(state.sessionId);
   el.loadLegalBtn.disabled = !active;
   el.aiTurnBtn.disabled = !active;
+  el.rollBtn.disabled = !active;
   el.sessionReportBtn.disabled = !active;
+  el.closeSessionBtn.disabled = !active;
 }
 
 async function loadTrainingSummary() {
@@ -196,7 +200,6 @@ async function submitMove() {
       method: "POST",
       body: JSON.stringify({
         played_move: { notation, steps: state.moveSteps },
-        next_dice: currentDice(),
         record_training: true,
       }),
     });
@@ -219,13 +222,45 @@ async function aiTurn() {
   try {
     const played = await api(`/sessions/${state.sessionId}/ai-turn`, {
       method: "POST",
-      body: JSON.stringify({ next_dice: currentDice(), apply_move: true }),
+      body: JSON.stringify({ apply_move: true }),
     });
     state.position = played.current_position;
     state.legalMoves = [];
     renderBoard();
     renderLegalMoves();
     notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
+async function rollDice() {
+  if (!state.sessionId) return;
+  try {
+    const rolled = await api(`/sessions/${state.sessionId}/roll`, { method: "POST" });
+    state.position = rolled.position;
+    el.die1.value = String(rolled.dice[0]);
+    el.die2.value = String(rolled.dice[1]);
+    renderBoard();
+    notify(`Rolled ${rolled.dice[0]}-${rolled.dice[1]}.`);
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
+async function closeSession() {
+  if (!state.sessionId) return;
+  try {
+    const closed = await api(`/sessions/${state.sessionId}/close`, { method: "POST" });
+    notify(`Session #${closed.session_id} closed.`);
+    state.sessionId = null;
+    state.legalMoves = [];
+    state.moveSteps = [];
+    state.selectedFrom = null;
+    el.sessionStatus.textContent = "No session";
+    refreshButtons();
+    renderMoveBuilder();
+    renderLegalMoves();
   } catch (err) {
     notify(err.message, true);
   }
@@ -333,10 +368,12 @@ el.newSessionBtn.addEventListener("click", newSession);
 el.loadLegalBtn.addEventListener("click", loadLegalMoves);
 el.submitMoveBtn.addEventListener("click", submitMove);
 el.aiTurnBtn.addEventListener("click", aiTurn);
+el.rollBtn.addEventListener("click", rollDice);
 el.fromBarBtn.addEventListener("click", chooseFromBar);
 el.toOffBtn.addEventListener("click", chooseToOff);
 el.clearMoveBtn.addEventListener("click", clearMove);
 el.sessionReportBtn.addEventListener("click", loadSessionReport);
+el.closeSessionBtn.addEventListener("click", closeSession);
 el.loadDrillBtn.addEventListener("click", loadDrill);
 el.submitDrillBtn.addEventListener("click", submitDrillAttempt);
 

@@ -33,6 +33,8 @@ Gammondator solves this by running in a live game loop:
   - `GET /sessions/{session_id}`
   - `POST /sessions/{session_id}/play-turn`
   - `POST /sessions/{session_id}/ai-turn`
+  - `POST /sessions/{session_id}/roll`
+  - `POST /sessions/{session_id}/close`
   - `GET /sessions/{session_id}/report`
   - `POST /analyze-move`
   - `POST /choose-ai-move`
@@ -116,6 +118,7 @@ Gammondator solves this by running in a live game loop:
 - Inline feedback panel for move quality + explanation.
 - Session report/training summary views.
 - Drill load and answer workflow.
+- Dice roll and close-session controls in the web UI.
 
 ### Data Model (Planned)
 - `games`

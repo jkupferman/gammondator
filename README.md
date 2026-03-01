@@ -27,6 +27,8 @@ Server runs at `http://127.0.0.1:8000`.
 - `GET /sessions/{session_id}`
 - `POST /sessions/{session_id}/play-turn`
 - `POST /sessions/{session_id}/ai-turn`
+- `POST /sessions/{session_id}/roll`
+- `POST /sessions/{session_id}/close`
 - `GET /sessions/{session_id}/report`
 - `POST /analyze-move`
 - `POST /choose-ai-move`
@@ -120,6 +122,18 @@ curl -X POST 'http://127.0.0.1:8000/sessions/1/play-turn' \
   -d '{ "played_move": { ... }, "next_dice": [3,2], "record_training": true }'
 ```
 
+Roll fresh dice for the current session position:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/sessions/1/roll'
+```
+
+Close a session:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/sessions/1/close'
+```
+
 Have AI choose and apply a turn in that session:
 
 ```bash
@@ -203,6 +217,7 @@ The web UI supports:
 - legal move loading
 - click-based move builder + submit
 - AI turn button
+- roll button and session close action
 - session report and training summary panels
 - drill mode load/answer flow
 
@@ -281,4 +296,5 @@ export GAMMONDATOR_DB_PATH='/absolute/path/to/gammondator.db'
 ## Notes
 
 - Endpoints that accept user-provided moves now enforce strict legality for the supplied `position + dice`.
+- Session turn endpoints auto-roll next dice when `next_dice` is omitted.
 - GNUbg backend can automatically fall back to heuristic backend per request when enabled.

@@ -1,4 +1,5 @@
 import os
+import random
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -28,6 +29,8 @@ from app.schemas import (
     SessionCreateRequest,
     SessionAIMoveRequest,
     SessionAIMoveResponse,
+    SessionCloseResponse,
+    SessionRollResponse,
     SessionReportResponse,
     SessionPlayTurnRequest,
     SessionPlayTurnResponse,
@@ -92,6 +95,35 @@ def get_session_endpoint(session_id: int) -> SessionStateResponse:
         move_count=int(state["move_count"]),
         current_position=state["current_position"],
     )
+
+
+@app.post("/sessions/{session_id}/close", response_model=SessionCloseResponse)
+def close_session_endpoint(session_id: int) -> SessionCloseResponse:
+    try:
+        closed = session_store.close_session(session_id)
+        return SessionCloseResponse(session_id=int(closed["session_id"]), status=str(closed["status"]))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/sessions/{session_id}/roll", response_model=SessionRollResponse)
+def roll_session_dice_endpoint(session_id: int) -> SessionRollResponse:
+    state = session_store.get_session(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+
+    dice = (random.randint(1, 6), random.randint(1, 6))
+    pos = state["current_position"]
+    rolled_position = pos.model_copy(update={"dice": dice})
+    try:
+        updated = session_store.set_position(session_id=session_id, position=rolled_position)
+        return SessionRollResponse(
+            session_id=int(updated["session_id"]),
+            dice=dice,
+            position=updated["current_position"],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/sessions/{session_id}/report", response_model=SessionReportResponse)
@@ -287,10 +319,13 @@ def play_session_turn_endpoint(
     state = session_store.get_session(session_id)
     if state is None:
         raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+    if str(state["status"]) != "active":
+        raise HTTPException(status_code=400, detail=f"session {session_id} is not active")
 
     current_position = state["current_position"]
 
     try:
+        next_dice = payload.next_dice or (random.randint(1, 6), random.randint(1, 6))
         analysis = _rate_played_move(
             RatePlayedMoveRequest(position=current_position, played_move=payload.played_move)
         )
@@ -300,7 +335,7 @@ def play_session_turn_endpoint(
         next_position = apply_move_to_position(
             position=current_position,
             move=payload.played_move,
-            next_dice=payload.next_dice,
+            next_dice=next_dice,
         )
         advanced = session_store.apply_turn(
             session_id=session_id,
@@ -328,10 +363,13 @@ def play_session_ai_turn_endpoint(
     state = session_store.get_session(session_id)
     if state is None:
         raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+    if str(state["status"]) != "active":
+        raise HTTPException(status_code=400, detail=f"session {session_id} is not active")
 
     current_position = state["current_position"]
 
     try:
+        next_dice = payload.next_dice or (random.randint(1, 6), random.randint(1, 6))
         legal_moves = generate_legal_moves(current_position)
         if not legal_moves:
             raise HTTPException(status_code=400, detail="no legal moves available")
@@ -366,7 +404,7 @@ def play_session_ai_turn_endpoint(
         next_position = apply_move_to_position(
             position=current_position,
             move=selected,
-            next_dice=payload.next_dice,
+            next_dice=next_dice,
         )
         advanced = session_store.apply_turn(
             session_id=session_id,
