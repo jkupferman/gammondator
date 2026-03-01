@@ -27,6 +27,7 @@ Server runs at `http://127.0.0.1:8000`.
 - `GET /analysis-jobs`
 - `GET /analysis-jobs/{job_id}`
 - `POST /analysis-jobs/{job_id}/run`
+- `POST /analysis-jobs/{job_id}/retry`
 - `POST /analysis-jobs/run-next`
 - `POST /analysis-jobs/run-batch`
 - `POST /sessions`
@@ -228,6 +229,7 @@ Run queued jobs:
 
 ```bash
 curl -X POST 'http://127.0.0.1:8000/analysis-jobs/1/run'
+curl -X POST 'http://127.0.0.1:8000/analysis-jobs/1/retry'
 curl -X POST 'http://127.0.0.1:8000/analysis-jobs/run-next?profile_id=default'
 curl -X POST 'http://127.0.0.1:8000/analysis-jobs/run-batch?profile_id=default&limit=20'
 ```
@@ -264,6 +266,7 @@ The web UI supports:
 - cube trainer decision checker panel
 - drill mode load/answer flow
 - analysis queue create/run-next controls and job list
+- retry-latest-job control
 
 ## Testing
 

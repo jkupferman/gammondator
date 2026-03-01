@@ -443,6 +443,20 @@ def test_analysis_job_run_batch() -> None:
     assert len(data["job_ids"]) == data["processed"]
 
 
+def test_analysis_job_retry() -> None:
+    created = client.post(
+        "/analysis-jobs",
+        json={"profile_id": "default", "position": SAMPLE_PAYLOAD["position"]},
+    ).json()
+    job_id = created["job_id"]
+    client.post(f"/analysis-jobs/{job_id}/run")
+    retry = client.post(f"/analysis-jobs/{job_id}/retry")
+    assert retry.status_code == 200
+    payload = retry.json()
+    assert payload["job_id"] == job_id
+    assert payload["status"] == "pending"
+
+
 def test_training_dashboard_endpoint() -> None:
     response = client.get("/training/dashboard?profile_id=default")
     assert response.status_code == 200

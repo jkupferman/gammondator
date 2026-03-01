@@ -172,6 +172,15 @@ def run_analysis_job_endpoint(job_id: int) -> AnalysisJobResponse:
     return _run_analysis_job(job_id)
 
 
+@app.post("/analysis-jobs/{job_id}/retry", response_model=AnalysisJobResponse)
+def retry_analysis_job_endpoint(job_id: int) -> AnalysisJobResponse:
+    try:
+        job = analysis_store.reset_to_pending(job_id)
+        return _job_to_response(job)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.post("/analysis-jobs/run-next", response_model=AnalysisJobResponse)
 def run_next_analysis_job_endpoint(profile_id: str | None = None) -> AnalysisJobResponse:
     next_job = analysis_store.next_pending_job(profile_id=profile_id)

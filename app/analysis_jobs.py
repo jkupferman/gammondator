@@ -159,6 +159,26 @@ class AnalysisJobStore:
             )
             conn.commit()
 
+    def reset_to_pending(self, job_id: int) -> dict[str, object]:
+        now = datetime.now(tz=timezone.utc).isoformat()
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM analysis_jobs WHERE id = ?", (job_id,)).fetchone()
+            if row is None:
+                raise ValueError(f"analysis job {job_id} not found")
+            conn.execute(
+                """
+                UPDATE analysis_jobs
+                SET status = 'pending', updated_at = ?, error = NULL
+                WHERE id = ?
+                """,
+                (now, job_id),
+            )
+            conn.commit()
+
+        refreshed = self.get_job(job_id)
+        assert refreshed is not None
+        return refreshed
+
     @staticmethod
     def _row_to_dict(row: sqlite3.Row) -> dict[str, object]:
         return {
