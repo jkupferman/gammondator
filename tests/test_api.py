@@ -168,6 +168,26 @@ def test_session_ai_turn() -> None:
     assert turns[-1]["actor"] == "ai"
 
 
+def test_session_ai_turn_preview_only() -> None:
+    create_response = client.post(
+        "/sessions",
+        json={"initial_position": SAMPLE_PAYLOAD["position"]},
+    )
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+
+    response = client.post(
+        f"/sessions/{session_id}/ai-turn",
+        json={"apply_move": False},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["session_id"] == session_id
+    assert data["current_position"] is None
+    assert len(data["selected_play"]["steps"]) >= 1
+    assert data["move_count"] == 0
+
+
 def test_session_roll_endpoint() -> None:
     create_response = client.post(
         "/sessions",
