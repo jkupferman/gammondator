@@ -405,11 +405,17 @@ button:disabled {
 }
 
 .feedback-step-shared {
-  color: #565656;
+  color: #7a7a7a;
+  font-weight: 700;
 }
 
 .feedback-step-normal {
   color: inherit;
+}
+
+.feedback-best-line {
+  color: #7a7a7a;
+  font-weight: 700;
 }
 
 @media (max-width: 900px) {

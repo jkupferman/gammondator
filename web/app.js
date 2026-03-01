@@ -327,7 +327,7 @@ function renderAnalysisFeedback(analysis, aiSummary = "") {
   const lines = [
     `<span class="feedback-quality ${qualityClass}">${escapeHtml(summary.qualityTitle)}</span>`,
     `You played: ${playedWithShared}`,
-    `Best line: ${escapeHtml(summary.bestLine)}`,
+    `Best line: <span class="feedback-best-line">${escapeHtml(summary.bestLine)}</span>`,
   ];
   lines.push(escapeHtml(summary.equityLossLine));
   lines.push(
