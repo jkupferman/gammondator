@@ -238,6 +238,43 @@ button:disabled {
   margin-top: 8px;
 }
 
+.off-trays {
+  margin-top: 10px;
+}
+
+.off-trays-inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.off-tray {
+  background: rgba(74, 43, 24, 0.7);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  color: #fff2e0;
+  padding: 8px;
+}
+
+.off-title {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.off-stack {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  flex-wrap: wrap;
+}
+
+.off-empty {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
 pre {
   white-space: pre-wrap;
   background: #f7f3ea;
@@ -270,6 +307,7 @@ pre {
 
 @media (max-width: 900px) {
   .split { grid-template-columns: 1fr; }
+  .off-trays-inner { grid-template-columns: 1fr; }
   .board-row {
     grid-template-columns: 1fr;
     min-height: auto;

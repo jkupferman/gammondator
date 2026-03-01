@@ -20,6 +20,7 @@ const el = {
   loadDrillBtn: document.getElementById("loadDrillBtn"),
   sessionStatus: document.getElementById("sessionStatus"),
   boardGrid: document.getElementById("boardGrid"),
+  offTrays: document.getElementById("offTrays"),
   turnLabel: document.getElementById("turnLabel"),
   barOffLabel: document.getElementById("barOffLabel"),
   cubeLabel: document.getElementById("cubeLabel"),
@@ -141,6 +142,8 @@ function renderBoard() {
     <div class="bar-label">BAR</div>
     <div class="bar-counts">W ${state.position.bar_white} / B ${state.position.bar_black}</div>
   `;
+  bar.title = "Click to select checker from bar";
+  bar.addEventListener("click", () => chooseFromBar());
   topRow.appendChild(bar);
 
   topRow.appendChild(buildHalf(topRight, "down"));
@@ -156,6 +159,34 @@ function renderBoard() {
 
   el.boardGrid.innerHTML = "";
   el.boardGrid.appendChild(board);
+
+  const off = document.createElement("div");
+  off.className = "off-trays-inner";
+  off.innerHTML = `
+    <div class="off-tray">
+      <div class="off-title">White Off</div>
+      <div class="off-stack">${renderOffCheckers("white", state.position.off_white)}</div>
+    </div>
+    <div class="off-tray">
+      <div class="off-title">Black Off</div>
+      <div class="off-stack">${renderOffCheckers("black", state.position.off_black)}</div>
+    </div>
+  `;
+  el.offTrays.innerHTML = "";
+  el.offTrays.appendChild(off);
+}
+
+function renderOffCheckers(side, count) {
+  if (!count) return "<span class='off-empty'>0</span>";
+  const visible = Math.min(count, 8);
+  const items = [];
+  for (let i = 0; i < visible; i += 1) {
+    items.push(`<span class="checker ${side}"></span>`);
+  }
+  if (count > visible) {
+    items.push(`<span class="checker-count">+${count - visible}</span>`);
+  }
+  return items.join("");
 }
 
 function renderMoveBuilder() {
