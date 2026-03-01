@@ -28,7 +28,6 @@ const el = {
   aiTurnBtn: document.getElementById("aiTurnBtn"),
   aiSuggestBtn: document.getElementById("aiSuggestBtn"),
   rollBtn: document.getElementById("rollBtn"),
-  autoAiToggle: document.getElementById("autoAiToggle"),
   sessionReportBtn: document.getElementById("sessionReportBtn"),
   turnTimelineBtn: document.getElementById("turnTimelineBtn"),
   downloadTimelineBtn: document.getElementById("downloadTimelineBtn"),
@@ -83,7 +82,6 @@ function renderAnimationStatus() {
 
 function savePreferences() {
   window.localStorage.setItem("gammondator.profileId", el.profileId.value || "default");
-  window.localStorage.setItem("gammondator.autoAi", el.autoAiToggle.checked ? "1" : "0");
   window.localStorage.setItem("gammondator.animationMs", String(el.animationMs.value || "320"));
   window.localStorage.setItem("gammondator.timelineLimit", String(el.timelineLimit.value || "300"));
   window.localStorage.setItem("gammondator.turnActorFilter", el.turnActorFilter.value || "all");
@@ -94,8 +92,6 @@ function loadPreferences() {
   if (profileId) {
     el.profileId.value = profileId;
   }
-  const autoAi = window.localStorage.getItem("gammondator.autoAi");
-  el.autoAiToggle.checked = autoAi === "1";
   const animationMs = window.localStorage.getItem("gammondator.animationMs");
   if (animationMs) {
     el.animationMs.value = animationMs;
@@ -120,10 +116,6 @@ async function api(path, options = {}) {
     throw new Error(data.detail || `HTTP ${response.status}`);
   }
   return response.json();
-}
-
-function currentDice() {
-  return [Number(el.die1.value), Number(el.die2.value)];
 }
 
 function currentProfileId() {
@@ -1564,7 +1556,6 @@ el.profileId.addEventListener("change", async () => {
   await loadAnalysisJobs();
   await loadSessionList();
 });
-el.autoAiToggle.addEventListener("change", savePreferences);
 el.animationMs.addEventListener("change", savePreferences);
 el.timelineLimit.addEventListener("change", async () => {
   savePreferences();
