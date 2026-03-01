@@ -9,6 +9,7 @@ const state = {
   animating: false,
   animationSeq: 0,
   activeStepHighlight: null,
+  lastReplay: null,
   lastMoveHighlight: null,
   highlightTimerId: null,
   moveLog: [],
@@ -42,6 +43,7 @@ const el = {
   toOffBtn: document.getElementById("toOffBtn"),
   undoStepBtn: document.getElementById("undoStepBtn"),
   clearMoveBtn: document.getElementById("clearMoveBtn"),
+  replayMoveBtn: document.getElementById("replayMoveBtn"),
   currentMove: document.getElementById("currentMove"),
   submitMoveBtn: document.getElementById("submitMoveBtn"),
   legalMoves: document.getElementById("legalMoves"),
@@ -126,6 +128,14 @@ function resetAnimationState() {
   state.animationSeq += 1;
   state.animating = false;
   clearStepHighlight();
+}
+
+function setLastReplay(startPosition, steps, finalPosition) {
+  state.lastReplay = {
+    startPosition: clonePosition(startPosition),
+    steps: steps.map((step) => ({ from_point: step.from_point, to_point: step.to_point })),
+    finalPosition: clonePosition(finalPosition),
+  };
 }
 
 function applyAnimatedStep(position, step, side) {
@@ -726,6 +736,7 @@ function renderMoveBuilder() {
   el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating;
   el.clearMoveBtn.disabled = el.clearMoveBtn.disabled || state.animating;
   el.undoStepBtn.disabled = el.undoStepBtn.disabled || state.animating;
+  el.replayMoveBtn.disabled = state.animating || !state.lastReplay;
   el.toOffBtn.classList.toggle("valid-target-btn", offPoint !== null && validTargets.has(offPoint));
 }
 
@@ -860,6 +871,7 @@ async function resumeSelectedSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
+    state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
     el.sessionStatus.textContent = `Session #${state.sessionId} (${session.status})`;
@@ -907,6 +919,7 @@ async function newSession() {
     state.selectedFrom = null;
     state.legalMoves = [];
     state.moveLog = [];
+    state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
     el.sessionStatus.textContent = `Session #${state.sessionId} (${created.status})`;
@@ -952,6 +965,7 @@ async function submitMove() {
     });
     renderMoveBuilder();
     renderMoveLog();
+    setLastReplay(startingPosition, playedSteps, played.current_position);
     await animateMoveReplay(startingPosition, playedSteps, played.current_position);
     setMoveHighlightFromSteps(playedSteps);
     notify(formatMoveAnalysisSummary(played.analysis));
@@ -984,6 +998,7 @@ async function aiTurn(showNotify = true) {
     });
     renderMoveBuilder();
     renderMoveLog();
+    setLastReplay(startingPosition, played.selected_move?.steps || [], played.current_position);
     await animateMoveReplay(startingPosition, played.selected_move?.steps || [], played.current_position);
     setMoveHighlightFromSteps(played.selected_move?.steps || []);
     await refreshLegalMoves(true);
@@ -1002,6 +1017,7 @@ async function rollDice() {
     state.position = rolled.position;
     state.moveSteps = [];
     state.selectedFrom = null;
+    state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
     renderMoveBuilder();
@@ -1025,6 +1041,7 @@ async function closeSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
+    state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
     el.sessionStatus.textContent = "No session";
@@ -1075,6 +1092,22 @@ function clearMove() {
   clearMoveHighlight(false);
   renderMoveBuilder();
   renderBoard();
+}
+
+async function replayLastMove() {
+  if (!state.lastReplay || state.animating) {
+    return;
+  }
+  state.moveSteps = [];
+  state.selectedFrom = null;
+  clearDragState();
+  renderMoveBuilder();
+  await animateMoveReplay(
+    state.lastReplay.startPosition,
+    state.lastReplay.steps,
+    state.lastReplay.finalPosition,
+  );
+  setMoveHighlightFromSteps(state.lastReplay.steps);
 }
 
 function undoMoveStep() {
@@ -1133,6 +1166,7 @@ async function loadDrill() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
+    state.lastReplay = null;
     resetAnimationState();
     clearMoveHighlight(false);
     renderMoveBuilder();
@@ -1237,6 +1271,7 @@ el.fromBarBtn.addEventListener("click", chooseFromBar);
 el.toOffBtn.addEventListener("click", chooseToOff);
 el.undoStepBtn.addEventListener("click", undoMoveStep);
 el.clearMoveBtn.addEventListener("click", clearMove);
+el.replayMoveBtn.addEventListener("click", replayLastMove);
 el.sessionReportBtn.addEventListener("click", loadSessionReport);
 el.closeSessionBtn.addEventListener("click", closeSession);
 el.refreshSessionsBtn.addEventListener("click", loadSessionList);
