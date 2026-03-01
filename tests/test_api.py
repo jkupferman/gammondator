@@ -108,6 +108,15 @@ def test_choose_ai_move_from_position() -> None:
     assert len(data["top_moves"]) > 0
 
 
+def test_analyze_position() -> None:
+    response = client.post("/analyze-position", json={"position": SAMPLE_PAYLOAD["position"]})
+    assert response.status_code == 200
+    data = response.json()
+    assert "best_move" in data
+    assert len(data["top_moves"]) > 0
+    assert data["legal_move_count"] >= len(data["top_moves"])
+
+
 def test_choose_ai_move_from_position_when_no_legal_moves() -> None:
     points = [0] * 24
     points[22] = -2
@@ -158,3 +167,33 @@ def test_rate_played_move_rejects_illegal_play() -> None:
     response = client.post("/rate-played-move", json=payload)
     assert response.status_code == 400
     assert response.json()["detail"] == "played_move is not legal for this position/dice"
+
+
+def test_rate_played_move_and_record_and_training_views() -> None:
+    payload = {
+        "position": SAMPLE_PAYLOAD["position"],
+        "played_move": {
+            "notation": "24/18 8/7",
+            "steps": [
+                {"from_point": 24, "to_point": 18},
+                {"from_point": 8, "to_point": 7},
+            ],
+        },
+    }
+    response = client.post("/rate-played-move-and-record", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data["review_id"], int)
+    assert "analysis" in data
+
+    summary_response = client.get("/training/summary")
+    assert summary_response.status_code == 200
+    summary = summary_response.json()
+    assert summary["total_moves"] >= 1
+    assert "average_equity_loss" in summary
+
+    mistakes_response = client.get("/training/mistakes?limit=5")
+    assert mistakes_response.status_code == 200
+    mistakes = mistakes_response.json()["mistakes"]
+    assert isinstance(mistakes, list)
+    assert len(mistakes) >= 1

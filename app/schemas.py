@@ -107,3 +107,31 @@ class ChooseAIMoveFromPositionRequest(BaseModel):
 class RatePlayedMoveRequest(BaseModel):
     position: Position
     played_move: Move
+
+
+class RatePlayedMoveRecordedResponse(BaseModel):
+    review_id: int
+    analysis: AnalyzeMoveResponse
+
+
+class TrainingSummaryResponse(BaseModel):
+    total_moves: int
+    average_equity_loss: float
+    inaccuracies: int
+    mistakes: int
+    blunders: int
+    last_recorded_at: str | None
+
+
+class TrainingMistakesResponse(BaseModel):
+    mistakes: list[dict[str, object]]
+
+
+class AnalyzePositionRequest(BaseModel):
+    position: Position
+
+
+class AnalyzePositionResponse(BaseModel):
+    best_move: MoveScore
+    top_moves: list[MoveScore]
+    legal_move_count: int

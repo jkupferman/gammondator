@@ -11,3 +11,6 @@ venv/
 
 # Packaging metadata
 *.egg-info/
+
+# Local app database
+*.db

@@ -26,8 +26,12 @@ Server runs at `http://127.0.0.1:8000`.
 - `POST /analyze-move`
 - `POST /choose-ai-move`
 - `POST /legal-moves`
+- `POST /analyze-position`
 - `POST /choose-ai-move-from-position`
 - `POST /rate-played-move`
+- `POST /rate-played-move-and-record`
+- `GET /training/summary`
+- `GET /training/mistakes`
 
 ## Example Request
 
@@ -96,12 +100,35 @@ curl -X POST 'http://127.0.0.1:8000/choose-ai-move-from-position' \
   -d '{ "position": { ...same position payload... } }'
 ```
 
+Analyze a full turn from `position + dice` and get ranked top moves:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/analyze-position' \
+  -H 'Content-Type: application/json' \
+  -d '{ "position": { ...same position payload... } }'
+```
+
 Rate a human move directly from `position + played_move` (server generates legal candidates):
 
 ```bash
 curl -X POST 'http://127.0.0.1:8000/rate-played-move' \
   -H 'Content-Type: application/json' \
   -d '{ "position": { ... }, "played_move": { ... } }'
+```
+
+Persist a rated move to training history:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/rate-played-move-and-record' \
+  -H 'Content-Type: application/json' \
+  -d '{ "position": { ... }, "played_move": { ... } }'
+```
+
+Read training stats:
+
+```bash
+curl 'http://127.0.0.1:8000/training/summary'
+curl 'http://127.0.0.1:8000/training/mistakes?limit=20'
 ```
 
 ## Testing
@@ -152,6 +179,17 @@ Bridge contract:
 ```
 
 `equities` keys must match candidate move notations.
+
+## Training Store
+
+Recorded training data is stored in a local SQLite database.
+
+- Default path: `gammondator.db`
+- Override with env var:
+
+```bash
+export GAMMONDATOR_DB_PATH='/absolute/path/to/gammondator.db'
+```
 
 ## Next Step
 
