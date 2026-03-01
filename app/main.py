@@ -20,6 +20,8 @@ from app.schemas import (
     RatePlayedMoveRequest,
     RatePlayedMoveRecordedResponse,
     SessionCreateRequest,
+    SessionAIMoveRequest,
+    SessionAIMoveResponse,
     SessionPlayTurnRequest,
     SessionPlayTurnResponse,
     SessionStateResponse,
@@ -251,6 +253,73 @@ def play_session_turn_endpoint(
             session_id=int(advanced["session_id"]),
             move_count=int(advanced["move_count"]),
             analysis=analysis,
+            current_position=advanced["current_position"],
+        )
+    except BackendUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/sessions/{session_id}/ai-turn", response_model=SessionAIMoveResponse)
+def play_session_ai_turn_endpoint(
+    session_id: int,
+    payload: SessionAIMoveRequest,
+) -> SessionAIMoveResponse:
+    state = session_store.get_session(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+
+    current_position = state["current_position"]
+
+    try:
+        legal_moves = generate_legal_moves(current_position)
+        if not legal_moves:
+            raise HTTPException(status_code=400, detail="no legal moves available")
+
+        analyzed = runtime.backend.analyze_move(
+            AnalyzeMoveRequest(
+                position=current_position,
+                played_move=legal_moves[0],
+                candidate_moves=legal_moves,
+            )
+        )
+        selected = next((move for move in legal_moves if move.notation == analyzed.best_move.notation), None)
+        if selected is None:
+            raise HTTPException(status_code=500, detail="best move not found in legal move list")
+
+        if not payload.apply_move:
+            return SessionAIMoveResponse(
+                session_id=session_id,
+                selected_move=analyzed.best_move,
+                top_moves=analyzed.top_moves,
+                move_count=int(state["move_count"]),
+                current_position=None,
+            )
+
+        applied_analysis = runtime.backend.analyze_move(
+            AnalyzeMoveRequest(
+                position=current_position,
+                played_move=selected,
+                candidate_moves=legal_moves,
+            )
+        )
+        next_position = apply_move_to_position(
+            position=current_position,
+            move=selected,
+            next_dice=payload.next_dice,
+        )
+        advanced = session_store.apply_turn(
+            session_id=session_id,
+            previous_position=current_position,
+            new_position=next_position,
+            analysis=applied_analysis,
+        )
+        return SessionAIMoveResponse(
+            session_id=session_id,
+            selected_move=analyzed.best_move,
+            top_moves=analyzed.top_moves,
+            move_count=int(advanced["move_count"]),
             current_position=advanced["current_position"],
         )
     except BackendUnavailableError as exc:

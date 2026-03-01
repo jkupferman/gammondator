@@ -26,6 +26,7 @@ Server runs at `http://127.0.0.1:8000`.
 - `POST /sessions`
 - `GET /sessions/{session_id}`
 - `POST /sessions/{session_id}/play-turn`
+- `POST /sessions/{session_id}/ai-turn`
 - `POST /analyze-move`
 - `POST /choose-ai-move`
 - `POST /legal-moves`
@@ -112,6 +113,14 @@ Play a turn in that session (rate move, advance board, set next dice):
 curl -X POST 'http://127.0.0.1:8000/sessions/1/play-turn' \
   -H 'Content-Type: application/json' \
   -d '{ "played_move": { ... }, "next_dice": [3,2], "record_training": true }'
+```
+
+Have AI choose and apply a turn in that session:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/sessions/1/ai-turn' \
+  -H 'Content-Type: application/json' \
+  -d '{ "next_dice": [4,2], "apply_move": true }'
 ```
 
 Choose an AI move directly from `position + dice` (no client candidate list needed):

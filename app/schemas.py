@@ -178,3 +178,24 @@ class SessionPlayTurnResponse(BaseModel):
     move_count: int
     analysis: AnalyzeMoveResponse
     current_position: Position
+
+
+class SessionAIMoveRequest(BaseModel):
+    next_dice: tuple[int, int]
+    apply_move: bool = True
+
+    @field_validator("next_dice")
+    @classmethod
+    def validate_next_dice(cls, value: tuple[int, int]) -> tuple[int, int]:
+        d1, d2 = value
+        if not (1 <= d1 <= 6 and 1 <= d2 <= 6):
+            raise ValueError("next_dice must be between 1 and 6")
+        return value
+
+
+class SessionAIMoveResponse(BaseModel):
+    session_id: int
+    selected_move: MoveScore
+    top_moves: list[MoveScore]
+    move_count: int
+    current_position: Position | None = None

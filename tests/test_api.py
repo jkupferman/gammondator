@@ -95,6 +95,28 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert played["current_position"]["dice"] == [3, 2]
 
 
+def test_session_ai_turn() -> None:
+    create_response = client.post(
+        "/sessions",
+        json={"initial_position": SAMPLE_PAYLOAD["position"]},
+    )
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+
+    response = client.post(
+        f"/sessions/{session_id}/ai-turn",
+        json={"next_dice": [4, 2], "apply_move": True},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["session_id"] == session_id
+    assert data["move_count"] == 1
+    assert "selected_move" in data
+    assert len(data["top_moves"]) > 0
+    assert data["current_position"]["turn"] == "black"
+    assert data["current_position"]["dice"] == [4, 2]
+
+
 def test_analyze_move_returns_ranked_feedback() -> None:
     response = client.post("/analyze-move", json=SAMPLE_PAYLOAD)
     assert response.status_code == 200
