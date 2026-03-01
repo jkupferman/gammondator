@@ -616,7 +616,7 @@ function renderCheckers(side, count) {
 
 function renderOffCheckers(side, count) {
   if (!count) return "<span class='off-empty'>0</span>";
-  const visible = Math.min(count, 8);
+  const visible = Math.min(count, 6);
   const items = [];
   for (let i = 0; i < visible; i += 1) {
     items.push(`<span class="checker ${side}"></span>`);
