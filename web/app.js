@@ -12,6 +12,9 @@ const state = {
   lastHumanWinPct: null,
   transientStatus: null,
   transientStatusTimer: null,
+  gameOver: false,
+  winner: null,
+  gameOverHandled: false,
 };
 
 const LAST_SESSION_KEY = "gammondator.lastSessionId";
@@ -57,6 +60,36 @@ function saveLastSessionId(sessionId) {
 
 function clearLastSessionId() {
   window.localStorage.removeItem(LAST_SESSION_KEY);
+}
+
+function terminalWinner(position) {
+  if (!position) return null;
+  if ((position.off_black || 0) >= 15) return "black";
+  if ((position.off_white || 0) >= 15) return "white";
+  return null;
+}
+
+async function handleGameOver(winner) {
+  if (!winner || !state.sessionId || state.gameOverHandled) return;
+  state.gameOver = true;
+  state.winner = winner;
+  state.gameOverHandled = true;
+  state.moveSteps = [];
+  state.selectedFrom = null;
+  state.legalMoves = [];
+  state.legalMovesLoaded = false;
+  render();
+
+  const won = winner === HUMAN_SIDE;
+  notify(won ? "Game complete: You won. Click New Game to play again." : "Game complete: White won. Click New Game to play again.");
+  if (readLastSessionId() === state.sessionId) {
+    clearLastSessionId();
+  }
+  try {
+    await api(`/sessions/${state.sessionId}/close`, { method: "POST" });
+  } catch {
+    // If already closed or unavailable, keep UX unblocked.
+  }
 }
 
 function diePipPositions(value) {
@@ -413,7 +446,9 @@ function renderStatus() {
   el.diceStatus.innerHTML = renderDiceReadout(state.position.dice[0], state.position.dice[1]);
 
   let statusText = "Your turn (black). Select checker to move.";
-  if (state.submittingMove) {
+  if (state.gameOver) {
+    statusText = state.winner === HUMAN_SIDE ? "Game complete: you won." : "Game complete: white won.";
+  } else if (state.submittingMove) {
     statusText = "Submitting move...";
   } else if (state.animating) {
     statusText = "Animating move...";
@@ -431,6 +466,7 @@ function renderStatus() {
 
   el.tipBtn.disabled =
     !state.position ||
+    state.gameOver ||
     state.position.turn !== HUMAN_SIDE ||
     state.submittingMove ||
     state.animating ||
@@ -645,7 +681,7 @@ function renderOffCheckers(side, count) {
 }
 
 function onPointClick(point) {
-  if (!state.position || state.submittingMove || state.animating || state.position.turn !== HUMAN_SIDE || !state.legalMovesLoaded) {
+  if (!state.position || state.gameOver || state.submittingMove || state.animating || state.position.turn !== HUMAN_SIDE || !state.legalMovesLoaded) {
     return;
   }
 
@@ -892,6 +928,11 @@ async function refreshLegalMoves() {
     render();
     return;
   }
+  const winner = terminalWinner(state.position);
+  if (winner) {
+    await handleGameOver(winner);
+    return;
+  }
 
   state.legalMovesLoaded = false;
   render();
@@ -935,6 +976,9 @@ async function createNewSession() {
     state.selectedFrom = null;
     state.submittingMove = false;
     state.lastHumanWinPct = null;
+    state.gameOver = false;
+    state.winner = null;
+    state.gameOverHandled = false;
     notify("New game started (new session created).");
     render();
     await refreshLegalMoves();
@@ -959,6 +1003,9 @@ async function loadSession(sessionId) {
     state.selectedFrom = null;
     state.submittingMove = false;
     state.lastHumanWinPct = null;
+    state.gameOver = false;
+    state.winner = null;
+    state.gameOverHandled = false;
     notify(`Resumed session #${session.session_id}.`);
     render();
     await refreshLegalMoves();
@@ -1028,7 +1075,7 @@ async function autoAdvanceWhiteTurns() {
 }
 
 async function submitPassMove() {
-  if (!state.sessionId || !state.position || state.position.turn !== HUMAN_SIDE) return;
+  if (!state.sessionId || !state.position || state.gameOver || state.position.turn !== HUMAN_SIDE) return;
 
   state.submittingMove = true;
   render();
@@ -1063,7 +1110,7 @@ async function submitPassMove() {
 }
 
 async function submitMove() {
-  if (!state.sessionId || !state.position || state.position.turn !== HUMAN_SIDE) return;
+  if (!state.sessionId || !state.position || state.gameOver || state.position.turn !== HUMAN_SIDE) return;
   if (state.submittingMove || state.moveSteps.length === 0) return;
 
   state.submittingMove = true;
@@ -1121,7 +1168,7 @@ async function submitMove() {
 }
 
 async function showTip() {
-  if (!state.sessionId || !state.position || state.animating || state.position.turn !== HUMAN_SIDE) return;
+  if (!state.sessionId || !state.position || state.gameOver || state.animating || state.position.turn !== HUMAN_SIDE) return;
 
   try {
     const suggested = await api(`/sessions/${state.sessionId}/ai-turn`, {
