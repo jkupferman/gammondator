@@ -1423,6 +1423,16 @@ window.addEventListener("keydown", (event) => {
     submitMove();
     return;
   }
+  if ((event.key === "a" || event.key === "A") && !el.aiSuggestBtn.disabled) {
+    event.preventDefault();
+    aiSuggest();
+    return;
+  }
+  if ((event.key === "r" || event.key === "R") && !el.replayMoveBtn.disabled) {
+    event.preventDefault();
+    replayLastMove();
+    return;
+  }
   if (event.key === "Backspace" && !el.undoStepBtn.disabled) {
     event.preventDefault();
     undoMoveStep();
