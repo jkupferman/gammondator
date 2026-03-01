@@ -295,6 +295,7 @@ class CubeDecisionResponse(BaseModel):
 class AnalysisJobCreateRequest(BaseModel):
     position: Position
     profile_id: str = "default"
+    analysis_mode: Literal["standard", "deep"] = "standard"
     played_move: Move | None = None
     candidate_moves: list[Move] | None = None
 
@@ -302,6 +303,7 @@ class AnalysisJobCreateRequest(BaseModel):
 class AnalysisJobResponse(BaseModel):
     job_id: int
     profile_id: str
+    analysis_mode: Literal["standard", "deep"]
     status: Literal["pending", "running", "completed", "failed"]
     created_at: str
     updated_at: str

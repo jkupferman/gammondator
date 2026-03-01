@@ -26,6 +26,7 @@ class AnalysisJobStore:
                 CREATE TABLE IF NOT EXISTS analysis_jobs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     profile_id TEXT NOT NULL DEFAULT 'default',
+                    analysis_mode TEXT NOT NULL DEFAULT 'standard',
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
@@ -40,6 +41,10 @@ class AnalysisJobStore:
                 conn.execute(
                     "ALTER TABLE analysis_jobs ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'default'"
                 )
+            if "analysis_mode" not in columns:
+                conn.execute(
+                    "ALTER TABLE analysis_jobs ADD COLUMN analysis_mode TEXT NOT NULL DEFAULT 'standard'"
+                )
             conn.commit()
 
     def create_job(self, request: AnalysisJobCreateRequest) -> int:
@@ -49,16 +54,18 @@ class AnalysisJobStore:
                 """
                 INSERT INTO analysis_jobs (
                     profile_id,
+                    analysis_mode,
                     status,
                     created_at,
                     updated_at,
                     request_json,
                     result_json,
                     error
-                ) VALUES (?, 'pending', ?, ?, ?, NULL, NULL)
+                ) VALUES (?, ?, 'pending', ?, ?, ?, NULL, NULL)
                 """,
                 (
                     request.profile_id,
+                    request.analysis_mode,
                     now,
                     now,
                     request.model_dump_json(),
@@ -184,6 +191,7 @@ class AnalysisJobStore:
         return {
             "job_id": int(row["id"]),
             "profile_id": str(row["profile_id"]),
+            "analysis_mode": str(row["analysis_mode"]),
             "status": str(row["status"]),
             "created_at": str(row["created_at"]),
             "updated_at": str(row["updated_at"]),

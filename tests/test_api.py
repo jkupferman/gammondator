@@ -402,6 +402,7 @@ def test_analysis_job_queue_flow() -> None:
         "/analysis-jobs",
         json={
             "profile_id": "default",
+            "analysis_mode": "deep",
             "position": SAMPLE_PAYLOAD["position"],
         },
     )
@@ -409,6 +410,7 @@ def test_analysis_job_queue_flow() -> None:
     created = create.json()
     job_id = created["job_id"]
     assert created["status"] == "pending"
+    assert created["analysis_mode"] == "deep"
 
     run = client.post(f"/analysis-jobs/{job_id}/run")
     assert run.status_code == 200

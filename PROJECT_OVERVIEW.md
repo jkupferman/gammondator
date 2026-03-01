@@ -67,6 +67,7 @@ Gammondator solves this by running in a live game loop:
 - Drill mode endpoints to replay high-equity-loss mistakes and track answer accuracy.
 - Profile-scoped sessions and training history via `profile_id`.
 - Deferred analysis job queue for asynchronous/deeper evaluation workflows.
+- Queue supports `standard` and `deep` analysis modes for deferred processing.
 - GNU Backgammon bridge contract support with fallback to heuristic backend.
 - Real GNU Backgammon bridge script (`scripts/gnubg_bridge_real.py`) for engine equities.
 - GNUbg quality controls: eval depth selection, timeout, and persistent equity cache.

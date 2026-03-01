@@ -1,5 +1,6 @@
 import os
 import random
+from contextlib import contextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -8,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.analysis import apply_move_to_position
 from app.analysis_jobs import AnalysisJobStore
-from app.backends import BackendUnavailableError, load_backend
+from app.backends import BackendUnavailableError, GnuBGBridgeBackend, load_backend
 from app.cube import evaluate_cube_decision
 from app.movegen import generate_legal_moves, is_legal_move, legal_move_signatures, move_signature
 from app.session_store import SessionStore
@@ -86,12 +87,44 @@ def _job_to_response(job: dict[str, object]) -> AnalysisJobResponse:
     return AnalysisJobResponse(
         job_id=int(job["job_id"]),
         profile_id=str(job["profile_id"]),
+        analysis_mode=str(job.get("analysis_mode", "standard")),
         status=str(job["status"]),
         created_at=str(job["created_at"]),
         updated_at=str(job["updated_at"]),
         error=str(job["error"]) if job.get("error") else None,
         result=result,
     )
+
+
+@contextmanager
+def _temporary_env(var: str, value: str):
+    old = os.environ.get(var)
+    os.environ[var] = value
+    try:
+        yield
+    finally:
+        if old is None:
+            os.environ.pop(var, None)
+        else:
+            os.environ[var] = old
+
+
+def _analyze_move_for_job(analyze_request: AnalyzeMoveRequest, analysis_mode: str) -> AnalyzeMoveResponse:
+    if analysis_mode != "deep" or runtime.configured != "gnubg":
+        return runtime.analyze_move(analyze_request)
+
+    bridge_cmd = os.getenv("GAMMONDATOR_GNUBG_BRIDGE_CMD", "gnubg-bridge")
+    deep_timeout = float(os.getenv("GAMMONDATOR_GNUBG_DEEP_TIMEOUT", "45"))
+    deep_eval_mode = os.getenv("GAMMONDATOR_GNUBG_DEEP_EVAL_MODE", "2ply")
+    deep_backend = GnuBGBridgeBackend(bridge_cmd=bridge_cmd, timeout_seconds=deep_timeout)
+
+    try:
+        with _temporary_env("GAMMONDATOR_GNUBG_EVAL_MODE", deep_eval_mode):
+            return deep_backend.analyze_move(analyze_request)
+    except BackendUnavailableError:
+        if runtime.fallback_backend is None:
+            raise
+        return runtime.fallback_backend.analyze_move(analyze_request)
 
 
 def _run_analysis_job(job_id: int) -> AnalysisJobResponse:
@@ -105,6 +138,7 @@ def _run_analysis_job(job_id: int) -> AnalysisJobResponse:
     job = analysis_store.get_job(job_id)
     assert job is not None
     request_payload = AnalysisJobCreateRequest.model_validate(job["request"])
+    analysis_mode = request_payload.analysis_mode
 
     try:
         if request_payload.candidate_moves:
@@ -131,7 +165,7 @@ def _run_analysis_job(job_id: int) -> AnalysisJobResponse:
                 candidate_moves=legal_moves,
             )
 
-        result = runtime.analyze_move(analyze_request)
+        result = _analyze_move_for_job(analyze_request, analysis_mode=analysis_mode)
         analysis_store.mark_completed(job_id, result.model_dump_json())
     except (BackendUnavailableError, ValueError) as exc:
         analysis_store.mark_failed(job_id, str(exc))

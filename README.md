@@ -222,7 +222,7 @@ Queue an analysis job:
 ```bash
 curl -X POST 'http://127.0.0.1:8000/analysis-jobs' \
   -H 'Content-Type: application/json' \
-  -d '{ "profile_id": "default", "position": { ... } }'
+  -d '{ "profile_id": "default", "analysis_mode": "deep", "position": { ... } }'
 ```
 
 Run queued jobs:
@@ -309,6 +309,8 @@ export GAMMONDATOR_GNUBG_TIMEOUT=15
 export GAMMONDATOR_GNUBG_CACHE=1
 export GAMMONDATOR_GNUBG_CACHE_DB='gammondator_gnubg_cache.db'
 export GAMMONDATOR_CUBE_ENGINE=1            # use GNUbg proper cube action in /cube/decision
+export GAMMONDATOR_GNUBG_DEEP_TIMEOUT=45
+export GAMMONDATOR_GNUBG_DEEP_EVAL_MODE=2ply
 ```
 
 Bridge contract:

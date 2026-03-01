@@ -34,6 +34,7 @@ const el = {
   cubeAction: document.getElementById("cubeAction"),
   cubeCheckBtn: document.getElementById("cubeCheckBtn"),
   cubeFeedback: document.getElementById("cubeFeedback"),
+  analysisMode: document.getElementById("analysisMode"),
   queueAnalysisBtn: document.getElementById("queueAnalysisBtn"),
   runNextAnalysisBtn: document.getElementById("runNextAnalysisBtn"),
   retryLatestJobBtn: document.getElementById("retryLatestJobBtn"),
@@ -418,6 +419,7 @@ async function queueCurrentPositionAnalysis() {
       method: "POST",
       body: JSON.stringify({
         profile_id: currentProfileId(),
+        analysis_mode: el.analysisMode.value,
         position: state.position,
       }),
     });
