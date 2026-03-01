@@ -14,7 +14,9 @@ This is an MVP foundation designed to plug into a stronger engine (e.g. GNU Back
 - Click/tap/drag move input with legal source/target enforcement.
 - Legal destination highlighting for selected checkers.
 - Session gameplay loop controls (new, roll, AI turn, close, report).
+- Session gameplay loop controls (new, roll, AI suggest, AI turn, close, report).
 - Session resume picker for existing profile sessions.
+- Session move log restored from backend turn history on resume.
 - Move log with quality/equity-loss tags.
 - Move feedback summary in readable coaching format.
 - Auto AI reply toggle for faster training cycles.
