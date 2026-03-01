@@ -317,12 +317,17 @@ function renderAnalysisFeedback(analysis, aiSummary = "") {
     return;
   }
   const qualityClass = `quality-${summary.quality || "good"}`;
+  const hasDelta = summary.winDelta !== null;
+  const normalizedDelta = hasDelta ? Number(summary.winDelta.toFixed(1)) : null;
+  const isFlatDelta = normalizedDelta !== null && Math.abs(normalizedDelta) < 0.1;
   const deltaText =
-    summary.winDelta === null
+    !hasDelta
       ? ""
-      : ` (${summary.winDelta >= 0 ? "+" : ""}${summary.winDelta.toFixed(1)}%)`;
+      : isFlatDelta
+        ? "(no change)"
+        : `(${normalizedDelta >= 0 ? "+" : ""}${normalizedDelta.toFixed(1)}%)`;
   const deltaClass =
-    summary.winDelta === null ? "delta-flat" : summary.winDelta >= 0 ? "delta-up" : "delta-down";
+    !hasDelta || isFlatDelta ? "delta-flat" : normalizedDelta >= 0 ? "delta-up" : "delta-down";
   const playedWithShared = renderPlayedNotationWithSharedSteps(summary.playedNotation, summary.bestLine);
   const lines = [
     `<span class="feedback-quality ${qualityClass}">${escapeHtml(summary.qualityTitle)}</span>`,
