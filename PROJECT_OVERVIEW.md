@@ -85,6 +85,7 @@ Gammondator solves this by running in a live game loop:
 - Web board MVP served from backend root (`/`) with session gameplay controls.
 - Rich board interaction layer: drag/drop, touch input, legal target highlighting, and move source/target flash feedback.
 - Session UX improvements: in-session move log, session picker/resume, and auto AI reply toggle.
+- Session turn-history exports support actor filtering (`human` / `ai`) for focused review.
 - Persisted frontend preferences (`profile_id`, auto-AI) in browser storage.
 - Automated tests for API + backend behavior.
 
