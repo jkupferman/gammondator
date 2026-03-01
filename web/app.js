@@ -1501,6 +1501,11 @@ window.addEventListener("keydown", (event) => {
     loadTurnTimeline();
     return;
   }
+  if ((event.key === "d" || event.key === "D") && !el.downloadTimelineBtn.disabled) {
+    event.preventDefault();
+    downloadTurnTimeline();
+    return;
+  }
   if (event.key === "Backspace" && !el.undoStepBtn.disabled) {
     event.preventDefault();
     undoMoveStep();
