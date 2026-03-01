@@ -261,6 +261,7 @@ export GAMMONDATOR_GNUBG_EVAL_MODE=2ply     # 0ply, 1ply, or 2ply
 export GAMMONDATOR_GNUBG_TIMEOUT=15
 export GAMMONDATOR_GNUBG_CACHE=1
 export GAMMONDATOR_GNUBG_CACHE_DB='gammondator_gnubg_cache.db'
+export GAMMONDATOR_CUBE_ENGINE=1            # use GNUbg proper cube action in /cube/decision
 ```
 
 Bridge contract:

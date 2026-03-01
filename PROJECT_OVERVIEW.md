@@ -62,6 +62,7 @@ Gammondator solves this by running in a live game loop:
 - GNU Backgammon bridge contract support with fallback to heuristic backend.
 - Real GNU Backgammon bridge script (`scripts/gnubg_bridge_real.py`) for engine equities.
 - GNUbg quality controls: eval depth selection, timeout, and persistent equity cache.
+- GNUbg-backed cube recommendation path with heuristic fallback.
 - Local bridge stub script for integration testing.
 - Web board MVP served from backend root (`/`) with session gameplay controls.
 - Automated tests for API + backend behavior.
