@@ -28,6 +28,7 @@ Server runs at `http://127.0.0.1:8000`.
 - `GET /analysis-jobs/{job_id}`
 - `POST /analysis-jobs/{job_id}/run`
 - `POST /analysis-jobs/run-next`
+- `POST /analysis-jobs/run-batch`
 - `POST /sessions`
 - `GET /sessions/{session_id}`
 - `POST /sessions/{session_id}/play-turn`
@@ -228,6 +229,7 @@ Run queued jobs:
 ```bash
 curl -X POST 'http://127.0.0.1:8000/analysis-jobs/1/run'
 curl -X POST 'http://127.0.0.1:8000/analysis-jobs/run-next?profile_id=default'
+curl -X POST 'http://127.0.0.1:8000/analysis-jobs/run-batch?profile_id=default&limit=20'
 ```
 
 Inspect jobs:
@@ -235,6 +237,14 @@ Inspect jobs:
 ```bash
 curl 'http://127.0.0.1:8000/analysis-jobs?profile_id=default'
 curl 'http://127.0.0.1:8000/analysis-jobs/1'
+```
+
+Background worker (local process):
+
+```bash
+GAMMONDATOR_WORKER_PROFILE_ID=default \
+GAMMONDATOR_WORKER_BATCH_SIZE=20 \
+.venv/bin/python scripts/analysis_job_worker.py
 ```
 
 ## Web Board MVP

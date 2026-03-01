@@ -19,6 +19,7 @@ from app.schemas import (
     AnalyzeMoveResponse,
     AnalyzerInfoResponse,
     AnalysisJobCreateRequest,
+    AnalysisJobBatchRunResponse,
     AnalysisJobListResponse,
     AnalysisJobResponse,
     ChooseAIMoveRequest,
@@ -177,6 +178,38 @@ def run_next_analysis_job_endpoint(profile_id: str | None = None) -> AnalysisJob
     if next_job is None:
         raise HTTPException(status_code=404, detail="no pending analysis jobs")
     return _run_analysis_job(int(next_job["job_id"]))
+
+
+@app.post("/analysis-jobs/run-batch", response_model=AnalysisJobBatchRunResponse)
+def run_batch_analysis_jobs_endpoint(
+    profile_id: str | None = None,
+    limit: int = 10,
+) -> AnalysisJobBatchRunResponse:
+    safe_limit = max(1, min(limit, 200))
+    processed = 0
+    completed = 0
+    failed = 0
+    job_ids: list[int] = []
+
+    for _ in range(safe_limit):
+        next_job = analysis_store.next_pending_job(profile_id=profile_id)
+        if next_job is None:
+            break
+        job_id = int(next_job["job_id"])
+        result = _run_analysis_job(job_id)
+        job_ids.append(job_id)
+        processed += 1
+        if result.status == "completed":
+            completed += 1
+        elif result.status == "failed":
+            failed += 1
+
+    return AnalysisJobBatchRunResponse(
+        processed=processed,
+        completed=completed,
+        failed=failed,
+        job_ids=job_ids,
+    )
 
 
 @app.post("/sessions", response_model=SessionStateResponse)

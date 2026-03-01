@@ -432,6 +432,17 @@ def test_analysis_job_run_next() -> None:
     assert payload["status"] in {"completed", "failed"}
 
 
+def test_analysis_job_run_batch() -> None:
+    client.post("/analysis-jobs", json={"profile_id": "default", "position": SAMPLE_PAYLOAD["position"]})
+    client.post("/analysis-jobs", json={"profile_id": "default", "position": SAMPLE_PAYLOAD["position"]})
+    batch = client.post("/analysis-jobs/run-batch?profile_id=default&limit=5")
+    assert batch.status_code == 200
+    data = batch.json()
+    assert data["processed"] >= 2
+    assert data["completed"] + data["failed"] == data["processed"]
+    assert len(data["job_ids"]) == data["processed"]
+
+
 def test_training_dashboard_endpoint() -> None:
     response = client.get("/training/dashboard?profile_id=default")
     assert response.status_code == 200

@@ -313,6 +313,13 @@ class AnalysisJobListResponse(BaseModel):
     jobs: list[AnalysisJobResponse]
 
 
+class AnalysisJobBatchRunResponse(BaseModel):
+    processed: int
+    completed: int
+    failed: int
+    job_ids: list[int]
+
+
 class TrainingDashboardResponse(BaseModel):
     summary: TrainingSummaryResponse
     leaks: TrainingLeaksResponse
