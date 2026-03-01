@@ -30,6 +30,7 @@ const el = {
   cubeLabel: document.getElementById("cubeLabel"),
   fromBarBtn: document.getElementById("fromBarBtn"),
   toOffBtn: document.getElementById("toOffBtn"),
+  undoStepBtn: document.getElementById("undoStepBtn"),
   clearMoveBtn: document.getElementById("clearMoveBtn"),
   currentMove: document.getElementById("currentMove"),
   submitMoveBtn: document.getElementById("submitMoveBtn"),
@@ -564,6 +565,7 @@ function renderMoveBuilder() {
     el.currentMove.textContent = text;
   }
   el.clearMoveBtn.disabled = state.moveSteps.length === 0;
+  el.undoStepBtn.disabled = state.moveSteps.length === 0;
   el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0;
   el.fromBarBtn.disabled = !state.position;
   el.toOffBtn.disabled = !state.position || state.selectedFrom === null;
@@ -792,6 +794,17 @@ function clearMove() {
   renderBoard();
 }
 
+function undoMoveStep() {
+  if (state.moveSteps.length === 0) {
+    return;
+  }
+  state.moveSteps.pop();
+  state.selectedFrom = null;
+  clearDragState();
+  renderMoveBuilder();
+  renderBoard();
+}
+
 async function loadSessionReport() {
   if (!state.sessionId) return;
   try {
@@ -936,6 +949,7 @@ el.aiTurnBtn.addEventListener("click", aiTurn);
 el.rollBtn.addEventListener("click", rollDice);
 el.fromBarBtn.addEventListener("click", chooseFromBar);
 el.toOffBtn.addEventListener("click", chooseToOff);
+el.undoStepBtn.addEventListener("click", undoMoveStep);
 el.clearMoveBtn.addEventListener("click", clearMove);
 el.sessionReportBtn.addEventListener("click", loadSessionReport);
 el.closeSessionBtn.addEventListener("click", closeSession);
@@ -953,6 +967,29 @@ el.toOffBtn.addEventListener("touchend", (event) => {
   event.preventDefault();
   onOffDrop(event);
 }, { passive: false });
+
+window.addEventListener("keydown", (event) => {
+  const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
+  const typing = tag === "input" || tag === "textarea" || tag === "select";
+  if (typing) {
+    return;
+  }
+
+  if (event.key === "Enter" && !el.submitMoveBtn.disabled) {
+    event.preventDefault();
+    submitMove();
+    return;
+  }
+  if (event.key === "Backspace" && !el.undoStepBtn.disabled) {
+    event.preventDefault();
+    undoMoveStep();
+    return;
+  }
+  if (event.key === "Escape" && !el.clearMoveBtn.disabled) {
+    event.preventDefault();
+    clearMove();
+  }
+});
 
 refreshButtons();
 renderBoard();
