@@ -497,25 +497,28 @@ function chooseDestination(point, showErrors = true) {
   state.moveSteps.push({ from_point: state.selectedFrom, to_point: point });
   state.selectedFrom = null;
   clearDragState();
+  const exactMatch = exactLegalMoveMatch();
+  if (exactMatch) {
+    state.moveSteps = exactMatch.steps.map((step) => ({
+      from_point: step.from_point,
+      to_point: step.to_point,
+    }));
+  }
   renderMoveBuilder();
   renderBoard();
-  if (shouldAutoSubmitBuiltMove()) {
+  if (exactMatch) {
     submitMove();
   }
   return true;
 }
 
-function shouldAutoSubmitBuiltMove() {
-  if (!state.sessionId || !state.position || state.animating || state.moveSteps.length === 0) {
-    return false;
+function exactLegalMoveMatch() {
+  if (!state.legalMoves.length || state.moveSteps.length === 0) {
+    return null;
   }
-  if (!state.legalMoves.length) {
-    return false;
-  }
-
-  let exactMatch = false;
   for (const move of state.legalMoves) {
     if (!Array.isArray(move.steps)) continue;
+    if (move.steps.length !== state.moveSteps.length) continue;
     let prefixMatches = true;
     for (let i = 0; i < state.moveSteps.length; i += 1) {
       const expected = move.steps[i];
@@ -525,12 +528,11 @@ function shouldAutoSubmitBuiltMove() {
         break;
       }
     }
-    if (!prefixMatches) continue;
-    if (move.steps.length === state.moveSteps.length) {
-      exactMatch = true;
+    if (prefixMatches) {
+      return move;
     }
   }
-  return exactMatch;
+  return null;
 }
 
 function onCheckerDragStart(event) {
