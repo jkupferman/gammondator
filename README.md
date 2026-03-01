@@ -38,6 +38,9 @@ Server runs at `http://127.0.0.1:8000`.
 - `GET /training/summary`
 - `GET /training/mistakes`
 - `GET /training/leaks`
+- `GET /training/drills`
+- `POST /training/drills/attempt`
+- `GET /training/drills/summary`
 - `POST /cube/decision`
 
 ## Example Request
@@ -169,6 +172,16 @@ Read training stats:
 curl 'http://127.0.0.1:8000/training/summary'
 curl 'http://127.0.0.1:8000/training/mistakes?limit=20'
 curl 'http://127.0.0.1:8000/training/leaks'
+curl 'http://127.0.0.1:8000/training/drills?limit=10'
+curl 'http://127.0.0.1:8000/training/drills/summary'
+```
+
+Submit a drill answer:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/training/drills/attempt' \
+  -H 'Content-Type: application/json' \
+  -d '{ "review_id": 1, "chosen_notation": "13/7 8/7" }'
 ```
 
 Cube decision training:
@@ -191,6 +204,7 @@ The web UI supports:
 - click-based move builder + submit
 - AI turn button
 - session report and training summary panels
+- drill mode load/answer flow
 
 ## Testing
 

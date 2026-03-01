@@ -4,6 +4,7 @@ const state = {
   legalMoves: [],
   moveSteps: [],
   selectedFrom: null,
+  currentDrill: null,
 };
 
 const el = {
@@ -13,6 +14,7 @@ const el = {
   loadLegalBtn: document.getElementById("loadLegalBtn"),
   aiTurnBtn: document.getElementById("aiTurnBtn"),
   sessionReportBtn: document.getElementById("sessionReportBtn"),
+  loadDrillBtn: document.getElementById("loadDrillBtn"),
   sessionStatus: document.getElementById("sessionStatus"),
   boardGrid: document.getElementById("boardGrid"),
   turnLabel: document.getElementById("turnLabel"),
@@ -26,6 +28,9 @@ const el = {
   legalMoves: document.getElementById("legalMoves"),
   feedback: document.getElementById("feedback"),
   trainingSummary: document.getElementById("trainingSummary"),
+  drillStatus: document.getElementById("drillStatus"),
+  drillAnswer: document.getElementById("drillAnswer"),
+  submitDrillBtn: document.getElementById("submitDrillBtn"),
 };
 
 function notify(text, isError = false) {
@@ -113,11 +118,12 @@ function refreshButtons() {
 
 async function loadTrainingSummary() {
   try {
-    const [summary, leaks] = await Promise.all([
+    const [summary, leaks, drillSummary] = await Promise.all([
       api("/training/summary"),
       api("/training/leaks"),
+      api("/training/drills/summary"),
     ]);
-    el.trainingSummary.textContent = `${JSON.stringify(summary, null, 2)}\n\nLeaks:\n${JSON.stringify(leaks, null, 2)}`;
+    el.trainingSummary.textContent = `${JSON.stringify(summary, null, 2)}\n\nLeaks:\n${JSON.stringify(leaks, null, 2)}\n\nDrills:\n${JSON.stringify(drillSummary, null, 2)}`;
   } catch (err) {
     el.trainingSummary.textContent = `Unable to load training summary: ${err.message}`;
   }
@@ -258,6 +264,71 @@ async function loadSessionReport() {
   }
 }
 
+function renderDrillStatus() {
+  if (!state.currentDrill) {
+    el.drillStatus.textContent = "No drill loaded.";
+    el.submitDrillBtn.disabled = true;
+    return;
+  }
+  el.drillStatus.textContent = JSON.stringify(
+    {
+      review_id: state.currentDrill.review_id,
+      leak_category: state.currentDrill.leak_category,
+      equity_loss: state.currentDrill.equity_loss,
+      played_notation: state.currentDrill.played_notation,
+    },
+    null,
+    2,
+  );
+  el.submitDrillBtn.disabled = false;
+}
+
+async function loadDrill() {
+  try {
+    const data = await api("/training/drills?limit=1");
+    if (!data.drills.length) {
+      notify("No drills available yet. Record some rated moves first.", true);
+      state.currentDrill = null;
+      renderDrillStatus();
+      return;
+    }
+    state.currentDrill = data.drills[0];
+    state.position = state.currentDrill.position;
+    state.legalMoves = [];
+    state.moveSteps = [];
+    state.selectedFrom = null;
+    renderBoard();
+    renderMoveBuilder();
+    renderLegalMoves();
+    renderDrillStatus();
+    notify("Drill loaded. Enter your best move notation and submit.");
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
+async function submitDrillAttempt() {
+  if (!state.currentDrill) return;
+  const chosen = el.drillAnswer.value.trim();
+  if (!chosen) {
+    notify("Enter a move notation before submitting.", true);
+    return;
+  }
+  try {
+    const result = await api("/training/drills/attempt", {
+      method: "POST",
+      body: JSON.stringify({
+        review_id: state.currentDrill.review_id,
+        chosen_notation: chosen,
+      }),
+    });
+    notify(JSON.stringify(result, null, 2));
+    await loadTrainingSummary();
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
 el.newSessionBtn.addEventListener("click", newSession);
 el.loadLegalBtn.addEventListener("click", loadLegalMoves);
 el.submitMoveBtn.addEventListener("click", submitMove);
@@ -266,8 +337,11 @@ el.fromBarBtn.addEventListener("click", chooseFromBar);
 el.toOffBtn.addEventListener("click", chooseToOff);
 el.clearMoveBtn.addEventListener("click", clearMove);
 el.sessionReportBtn.addEventListener("click", loadSessionReport);
+el.loadDrillBtn.addEventListener("click", loadDrill);
+el.submitDrillBtn.addEventListener("click", submitDrillAttempt);
 
 refreshButtons();
 renderBoard();
 renderMoveBuilder();
+renderDrillStatus();
 loadTrainingSummary();

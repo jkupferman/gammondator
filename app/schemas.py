@@ -148,6 +148,37 @@ class TrainingLeaksResponse(BaseModel):
     leaks: list[TrainingLeakItem]
 
 
+class TrainingDrillItem(BaseModel):
+    review_id: int
+    leak_category: str
+    equity_loss: float
+    played_notation: str
+    best_notation: str
+    position: Position
+
+
+class TrainingDrillsResponse(BaseModel):
+    drills: list[TrainingDrillItem]
+
+
+class TrainingDrillAttemptRequest(BaseModel):
+    review_id: int
+    chosen_notation: str
+
+
+class TrainingDrillAttemptResponse(BaseModel):
+    attempt_id: int
+    review_id: int
+    correct: bool
+    expected_notation: str
+
+
+class TrainingDrillSummaryResponse(BaseModel):
+    total_attempts: int
+    correct_attempts: int
+    accuracy: float
+
+
 class SessionCreateRequest(BaseModel):
     initial_position: Position
 

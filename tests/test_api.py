@@ -311,6 +311,29 @@ def test_rate_played_move_and_record_and_training_views() -> None:
     assert len(leaks) >= 1
     assert "leak_category" in leaks[0]
 
+    drills_response = client.get("/training/drills?limit=5")
+    assert drills_response.status_code == 200
+    drills = drills_response.json()["drills"]
+    assert len(drills) >= 1
+    review_id = drills[0]["review_id"]
+
+    attempt_response = client.post(
+        "/training/drills/attempt",
+        json={
+            "review_id": review_id,
+            "chosen_notation": drills[0]["best_notation"],
+        },
+    )
+    assert attempt_response.status_code == 200
+    attempt = attempt_response.json()
+    assert attempt["correct"] is True
+
+    drill_summary_response = client.get("/training/drills/summary")
+    assert drill_summary_response.status_code == 200
+    summary = drill_summary_response.json()
+    assert summary["total_attempts"] >= 1
+    assert 0 <= summary["accuracy"] <= 1
+
 
 def test_cube_decision_endpoint() -> None:
     payload = {"position": SAMPLE_PAYLOAD["position"], "action": "nodouble"}

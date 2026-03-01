@@ -25,6 +25,7 @@
         <button id="loadLegalBtn" disabled>Load Legal Moves</button>
         <button id="aiTurnBtn" disabled>AI Turn</button>
         <button id="sessionReportBtn" disabled>Session Report</button>
+        <button id="loadDrillBtn">Load Drill</button>
       </div>
       <div class="row"><strong id="sessionStatus">No session</strong></div>
     </section>
@@ -67,6 +68,15 @@
     <section class="panel">
       <h2>Training Summary</h2>
       <pre id="trainingSummary">No training data loaded.</pre>
+    </section>
+
+    <section class="panel">
+      <h2>Drill Mode</h2>
+      <pre id="drillStatus">No drill loaded.</pre>
+      <div class="row">
+        <input id="drillAnswer" type="text" placeholder="Enter move notation e.g. 13/7 8/7" />
+        <button id="submitDrillBtn" disabled>Submit Drill Answer</button>
+      </div>
     </section>
   </main>
 

@@ -34,6 +34,10 @@ from app.schemas import (
     SessionStateResponse,
     TrainingMistakesResponse,
     TrainingLeaksResponse,
+    TrainingDrillAttemptRequest,
+    TrainingDrillAttemptResponse,
+    TrainingDrillsResponse,
+    TrainingDrillSummaryResponse,
     TrainingSummaryResponse,
 )
 from app.training_store import TrainingStore
@@ -227,6 +231,31 @@ def training_mistakes_endpoint(limit: int = 20) -> TrainingMistakesResponse:
 @app.get("/training/leaks", response_model=TrainingLeaksResponse)
 def training_leaks_endpoint() -> TrainingLeaksResponse:
     return TrainingLeaksResponse(leaks=training_store.leak_summary())
+
+
+@app.get("/training/drills", response_model=TrainingDrillsResponse)
+def training_drills_endpoint(limit: int = 10, leak_category: str | None = None) -> TrainingDrillsResponse:
+    drills = training_store.drill_candidates(limit=limit, leak_category=leak_category)
+    return TrainingDrillsResponse(drills=drills)
+
+
+@app.post("/training/drills/attempt", response_model=TrainingDrillAttemptResponse)
+def training_drill_attempt_endpoint(
+    payload: TrainingDrillAttemptRequest,
+) -> TrainingDrillAttemptResponse:
+    try:
+        result = training_store.record_drill_attempt(
+            review_id=payload.review_id,
+            chosen_notation=payload.chosen_notation,
+        )
+        return TrainingDrillAttemptResponse.model_validate(result)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/training/drills/summary", response_model=TrainingDrillSummaryResponse)
+def training_drill_summary_endpoint() -> TrainingDrillSummaryResponse:
+    return TrainingDrillSummaryResponse.model_validate(training_store.drill_summary())
 
 
 @app.post("/cube/decision", response_model=CubeDecisionResponse)

@@ -44,6 +44,9 @@ Gammondator solves this by running in a live game loop:
   - `GET /training/summary`
   - `GET /training/mistakes`
   - `GET /training/leaks`
+  - `GET /training/drills`
+  - `POST /training/drills/attempt`
+  - `GET /training/drills/summary`
   - `POST /cube/decision`
 - Strict input/output schemas for position and move analysis.
 - Heuristic baseline analyzer with move quality classification.
@@ -53,6 +56,7 @@ Gammondator solves this by running in a live game loop:
 - Server-side played-move rating from position + move (no client candidate list required).
 - SQLite-backed training history for recorded move reviews and mistake reporting.
 - Leak categorization summary to show recurring strategic/tactical mistake patterns.
+- Drill mode endpoints to replay high-equity-loss mistakes and track answer accuracy.
 - GNU Backgammon bridge contract support with fallback to heuristic backend.
 - Real GNU Backgammon bridge script (`scripts/gnubg_bridge_real.py`) for engine equities.
 - GNUbg quality controls: eval depth selection, timeout, and persistent equity cache.
@@ -111,6 +115,7 @@ Gammondator solves this by running in a live game loop:
 - Move input, legal move list, and AI turn controls.
 - Inline feedback panel for move quality + explanation.
 - Session report/training summary views.
+- Drill load and answer workflow.
 
 ### Data Model (Planned)
 - `games`

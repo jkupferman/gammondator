@@ -69,6 +69,19 @@ class TrainingStore:
                 conn.execute(
                     "ALTER TABLE move_reviews ADD COLUMN leak_category TEXT NOT NULL DEFAULT 'general'"
                 )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS drill_attempts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at TEXT NOT NULL,
+                    review_id INTEGER NOT NULL,
+                    chosen_notation TEXT NOT NULL,
+                    expected_notation TEXT NOT NULL,
+                    correct INTEGER NOT NULL,
+                    FOREIGN KEY(review_id) REFERENCES move_reviews(id)
+                )
+                """
+            )
             conn.commit()
 
     def record_review(self, position: Position, analysis: AnalyzeMoveResponse) -> int:
@@ -200,3 +213,109 @@ class TrainingStore:
                 }
                 for row in rows
             ]
+
+    def drill_candidates(self, limit: int = 10, leak_category: str | None = None) -> list[dict[str, object]]:
+        safe_limit = max(1, min(limit, 50))
+        with self._connect() as conn:
+            if leak_category:
+                rows = conn.execute(
+                    """
+                    SELECT
+                        id,
+                        leak_category,
+                        equity_loss,
+                        played_notation,
+                        best_notation,
+                        position_json
+                    FROM move_reviews
+                    WHERE leak_category = ?
+                    ORDER BY equity_loss DESC, created_at DESC
+                    LIMIT ?
+                    """,
+                    (leak_category, safe_limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT
+                        id,
+                        leak_category,
+                        equity_loss,
+                        played_notation,
+                        best_notation,
+                        position_json
+                    FROM move_reviews
+                    ORDER BY equity_loss DESC, created_at DESC
+                    LIMIT ?
+                    """,
+                    (safe_limit,),
+                ).fetchall()
+
+        drills: list[dict[str, object]] = []
+        for row in rows:
+            drills.append(
+                {
+                    "review_id": int(row["id"]),
+                    "leak_category": str(row["leak_category"]),
+                    "equity_loss": float(row["equity_loss"]),
+                    "played_notation": str(row["played_notation"]),
+                    "best_notation": str(row["best_notation"]),
+                    "position": Position.model_validate_json(str(row["position_json"])),
+                }
+            )
+        return drills
+
+    def record_drill_attempt(self, review_id: int, chosen_notation: str) -> dict[str, object]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT best_notation FROM move_reviews WHERE id = ?",
+                (review_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"review {review_id} not found")
+
+            expected_notation = str(row["best_notation"])
+            correct = int(chosen_notation.strip() == expected_notation)
+            now = datetime.now(tz=timezone.utc).isoformat()
+
+            cursor = conn.execute(
+                """
+                INSERT INTO drill_attempts (
+                    created_at,
+                    review_id,
+                    chosen_notation,
+                    expected_notation,
+                    correct
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (now, review_id, chosen_notation.strip(), expected_notation, correct),
+            )
+            conn.commit()
+            attempt_id = int(cursor.lastrowid)
+
+        return {
+            "attempt_id": attempt_id,
+            "review_id": review_id,
+            "correct": bool(correct),
+            "expected_notation": expected_notation,
+        }
+
+    def drill_summary(self) -> dict[str, object]:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_attempts,
+                    COALESCE(SUM(correct), 0) AS correct_attempts
+                FROM drill_attempts
+                """
+            ).fetchone()
+
+        total = int(row["total_attempts"] or 0)
+        correct = int(row["correct_attempts"] or 0)
+        accuracy = round((correct / total) if total else 0.0, 4)
+        return {
+            "total_attempts": total,
+            "correct_attempts": correct,
+            "accuracy": accuracy,
+        }
