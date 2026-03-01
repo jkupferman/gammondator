@@ -327,3 +327,17 @@ class TrainingDashboardResponse(BaseModel):
     leaks: TrainingLeaksResponse
     drill_summary: TrainingDrillSummaryResponse
     recent_jobs: AnalysisJobListResponse
+
+
+class TrainingRecommendation(BaseModel):
+    priority: int
+    title: str
+    action: str
+
+
+class TrainingReportResponse(BaseModel):
+    profile_id: str
+    summary: TrainingSummaryResponse
+    leaks: TrainingLeaksResponse
+    drill_summary: TrainingDrillSummaryResponse
+    recommendations: list[TrainingRecommendation]

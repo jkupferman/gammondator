@@ -467,3 +467,15 @@ def test_training_dashboard_endpoint() -> None:
     assert "leaks" in data
     assert "drill_summary" in data
     assert "recent_jobs" in data
+
+
+def test_training_report_endpoint() -> None:
+    response = client.get("/training/report?profile_id=default")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["profile_id"] == "default"
+    assert "summary" in data
+    assert "leaks" in data
+    assert "drill_summary" in data
+    assert isinstance(data["recommendations"], list)
+    assert len(data["recommendations"]) >= 1

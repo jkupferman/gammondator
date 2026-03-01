@@ -138,12 +138,11 @@ function refreshButtons() {
 
 async function loadTrainingSummary() {
   try {
-    const [summary, leaks, drillSummary] = await Promise.all([
-      api(`/training/summary?profile_id=${encodeURIComponent(currentProfileId())}`),
-      api(`/training/leaks?profile_id=${encodeURIComponent(currentProfileId())}`),
-      api(`/training/drills/summary?profile_id=${encodeURIComponent(currentProfileId())}`),
+    const [dashboard, report] = await Promise.all([
+      api(`/training/dashboard?profile_id=${encodeURIComponent(currentProfileId())}`),
+      api(`/training/report?profile_id=${encodeURIComponent(currentProfileId())}`),
     ]);
-    el.trainingSummary.textContent = `${JSON.stringify(summary, null, 2)}\n\nLeaks:\n${JSON.stringify(leaks, null, 2)}\n\nDrills:\n${JSON.stringify(drillSummary, null, 2)}`;
+    el.trainingSummary.textContent = `${JSON.stringify(dashboard, null, 2)}\n\nRecommendations:\n${JSON.stringify(report.recommendations, null, 2)}`;
   } catch (err) {
     el.trainingSummary.textContent = `Unable to load training summary: ${err.message}`;
   }

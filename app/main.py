@@ -49,6 +49,8 @@ from app.schemas import (
     TrainingDrillsResponse,
     TrainingDrillSummaryResponse,
     TrainingDashboardResponse,
+    TrainingRecommendation,
+    TrainingReportResponse,
     TrainingSummaryResponse,
 )
 from app.training_store import TrainingStore
@@ -520,6 +522,66 @@ def training_dashboard_endpoint(profile_id: str = "default") -> TrainingDashboar
         leaks=leaks,
         drill_summary=drill_summary,
         recent_jobs=jobs,
+    )
+
+
+@app.get("/training/report", response_model=TrainingReportResponse)
+def training_report_endpoint(profile_id: str = "default") -> TrainingReportResponse:
+    raw_summary = training_store.summary(profile_id=profile_id)
+    summary = TrainingSummaryResponse(
+        total_moves=raw_summary.total_moves,
+        average_equity_loss=raw_summary.average_equity_loss,
+        inaccuracies=raw_summary.inaccuracies,
+        mistakes=raw_summary.mistakes,
+        blunders=raw_summary.blunders,
+        last_recorded_at=raw_summary.last_recorded_at,
+    )
+    leaks = TrainingLeaksResponse(leaks=training_store.leak_summary(profile_id=profile_id))
+    drill_summary = TrainingDrillSummaryResponse.model_validate(
+        training_store.drill_summary(profile_id=profile_id)
+    )
+
+    recommendations: list[TrainingRecommendation] = []
+    if summary.blunders >= 3:
+        recommendations.append(
+            TrainingRecommendation(
+                priority=1,
+                title="Reduce Blunders",
+                action="Focus on highest-equity-loss drills and avoid high-risk blots in contact positions.",
+            )
+        )
+    top_leak = leaks.leaks[0] if leaks.leaks else None
+    if top_leak:
+        recommendations.append(
+            TrainingRecommendation(
+                priority=2,
+                title=f"Address Leak: {top_leak.leak_category}",
+                action=f"Run 10 drills tagged '{top_leak.leak_category}' and target average equity loss under {top_leak.average_equity_loss:.3f}.",
+            )
+        )
+    if drill_summary.total_attempts >= 10 and drill_summary.accuracy < 0.7:
+        recommendations.append(
+            TrainingRecommendation(
+                priority=3,
+                title="Improve Drill Accuracy",
+                action="Slow down move selection and compare top-3 candidates before committing a drill answer.",
+            )
+        )
+    if not recommendations:
+        recommendations.append(
+            TrainingRecommendation(
+                priority=1,
+                title="Maintain Form",
+                action="Keep playing and record at least 20 analyzed moves to surface stronger training signals.",
+            )
+        )
+
+    return TrainingReportResponse(
+        profile_id=profile_id,
+        summary=summary,
+        leaks=leaks,
+        drill_summary=drill_summary,
+        recommendations=recommendations,
     )
 
 
