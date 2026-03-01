@@ -81,7 +81,7 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 88px;
   gap: 10px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .bg-board {
@@ -276,6 +276,8 @@ button:disabled {
   display: grid;
   grid-template-rows: 1fr 1fr;
   gap: 8px;
+  height: 100%;
+  align-self: stretch;
 }
 
 .off-rail {
