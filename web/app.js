@@ -98,8 +98,11 @@ function formatMoveAnalysisSummary(analysis) {
     blunder: "Major mistake.",
   }[played.quality] || "Move reviewed.";
   const loss = Number(played.delta_vs_best || 0);
+  const isOptimal = loss <= 0.001;
   const lossHint =
-    loss < 0.02
+    isOptimal
+      ? "You found an optimal move."
+      : loss < 0.02
       ? "You were very close to optimal."
       : loss < 0.08
         ? "There was a slightly stronger option."
@@ -108,13 +111,19 @@ function formatMoveAnalysisSummary(analysis) {
           : "This choice gives up a lot of equity.";
   const firstReason = reasons[0] || "No notes available.";
   const nextStep =
-    played.notation === best.notation
+    isOptimal
+      ? "Order differences can still be equivalent when equity loss is zero."
+      : played.notation === best.notation
       ? "Keep prioritizing safety and tempo like this."
       : `Next time, compare against: ${best.notation}.`;
+  const bestLine =
+    isOptimal && played.notation !== best.notation
+      ? `${best.notation} (equivalent line)`
+      : best.notation;
   return [
     qualityTitle,
     `You played: ${played.notation}`,
-    `Best line: ${best.notation}`,
+    `Best line: ${bestLine}`,
     `Equity loss: ${loss.toFixed(3)}. ${lossHint}`,
     `Why: ${firstReason}`,
     `Next step: ${nextStep}`,
