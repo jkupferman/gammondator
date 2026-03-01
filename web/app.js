@@ -8,6 +8,7 @@ const state = {
   moveSteps: [],
   selectedFrom: null,
   submittingMove: false,
+  animating: false,
 };
 
 const el = {
@@ -36,6 +37,10 @@ async function api(path, options = {}) {
 
 function notify(message, isError = false) {
   el.feedback.textContent = isError ? `Error: ${message}` : message;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function clonePosition(position) {
@@ -109,6 +114,8 @@ function renderStatus() {
 
   if (state.submittingMove) {
     el.moveStatus.textContent = "Submitting move...";
+  } else if (state.animating) {
+    el.moveStatus.textContent = "Animating move...";
   } else if (state.position.turn !== HUMAN_SIDE) {
     el.moveStatus.textContent = "AI is playing white...";
   } else if (!state.legalMovesLoaded) {
@@ -126,8 +133,40 @@ function renderStatus() {
     !state.position ||
     state.position.turn !== HUMAN_SIDE ||
     state.submittingMove ||
+    state.animating ||
     !state.legalMovesLoaded ||
     state.legalMoves.length === 0;
+}
+
+async function animateMoveReplay(startPosition, steps, finalPosition) {
+  if (!finalPosition) return;
+  const moveSteps = Array.isArray(steps) ? steps : [];
+  if (moveSteps.length === 0) {
+    state.position = finalPosition;
+    render();
+    return;
+  }
+
+  state.animating = true;
+  state.moveSteps = [];
+  state.selectedFrom = null;
+  let preview = clonePosition(startPosition);
+  const side = startPosition.turn;
+  state.position = preview;
+  render();
+
+  try {
+    for (const step of moveSteps) {
+      preview = applyPreviewStep(preview, step, side);
+      state.position = preview;
+      render();
+      await sleep(260);
+    }
+    state.position = finalPosition;
+  } finally {
+    state.animating = false;
+    render();
+  }
 }
 
 function applyPreviewStep(position, step, side) {
@@ -306,7 +345,7 @@ function renderOffCheckers(side, count) {
 }
 
 function onPointClick(point) {
-  if (!state.position || state.submittingMove || state.position.turn !== HUMAN_SIDE || !state.legalMovesLoaded) {
+  if (!state.position || state.submittingMove || state.animating || state.position.turn !== HUMAN_SIDE || !state.legalMovesLoaded) {
     return;
   }
 
@@ -382,7 +421,7 @@ function chooseDestination(point) {
 }
 
 function maybeAutoSubmitBuiltMove() {
-  if (!state.position || state.submittingMove) return;
+  if (!state.position || state.submittingMove || state.animating) return;
   if (state.position.turn !== HUMAN_SIDE) return;
   if (state.selectedFrom !== null || state.moveSteps.length === 0) return;
 
@@ -434,7 +473,7 @@ function renderBoard() {
 
     const pointEl = document.createElement("button");
     pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${isSelected ? " selected" : ""}${isValidTarget ? " valid-target" : ""}`;
-    pointEl.disabled = state.submittingMove || state.position.turn !== HUMAN_SIDE;
+    pointEl.disabled = state.submittingMove || state.animating || state.position.turn !== HUMAN_SIDE;
     pointEl.addEventListener("click", () => onPointClick(point));
 
     const num = document.createElement("span");
@@ -476,7 +515,7 @@ function renderBoard() {
   const bar = document.createElement("button");
   const barSelected = state.selectedFrom === 0;
   bar.className = `board-bar${barSelected ? " selected" : ""}`;
-  bar.disabled = state.submittingMove || state.position.turn !== HUMAN_SIDE;
+  bar.disabled = state.submittingMove || state.animating || state.position.turn !== HUMAN_SIDE;
   bar.title = "Select checker from bar";
   bar.innerHTML = `
     <div class="bar-label">BAR</div>
@@ -506,7 +545,8 @@ function renderBoard() {
     state.position.turn === HUMAN_SIDE &&
     state.selectedFrom !== null &&
     validTargets.has(25) &&
-    !state.submittingMove;
+    !state.submittingMove &&
+    !state.animating;
 
   const off = document.createElement("div");
   off.className = "off-trays-inner";
@@ -627,6 +667,7 @@ async function autoAdvanceWhiteTurns() {
   const playedNotations = [];
 
   while (state.position && state.position.turn === "white" && safety < 12) {
+    const startPosition = clonePosition(state.position);
     const ai = await api(`/sessions/${state.sessionId}/ai-turn`, {
       method: "POST",
       body: JSON.stringify({ apply_move: true }),
@@ -634,8 +675,9 @@ async function autoAdvanceWhiteTurns() {
     if (!ai.current_position) {
       throw new Error("AI turn returned no current position");
     }
+    const aiSteps = ai.selected_play?.notation === "pass" ? [] : (ai.selected_play?.steps || []);
     playedNotations.push(ai.selected_play?.notation || ai.selected_move?.notation || "pass");
-    state.position = ai.current_position;
+    await animateMoveReplay(startPosition, aiSteps, ai.current_position);
     state.moveSteps = [];
     state.selectedFrom = null;
     safety += 1;
@@ -704,10 +746,23 @@ async function submitMove() {
       }),
     });
 
-    state.position = played.current_position;
+    const humanPosition = played.human_position || played.current_position;
+    const startPosition = clonePosition(state.position);
+    await animateMoveReplay(startPosition, playedSteps, humanPosition);
     state.moveSteps = [];
     state.selectedFrom = null;
     const aiReplies = Array.isArray(played.auto_ai_turns) ? played.auto_ai_turns : [];
+    let aiStart = clonePosition(state.position);
+    for (const turn of aiReplies) {
+      if (!turn || !turn.current_position) {
+        continue;
+      }
+      const aiSteps = turn.selected_play?.notation === "pass" ? [] : (turn.selected_play?.steps || []);
+      await animateMoveReplay(aiStart, aiSteps, turn.current_position);
+      aiStart = clonePosition(state.position);
+    }
+    state.position = played.current_position;
+    render();
     const aiSummary = aiReplies.length
       ? `\nAI replies: ${aiReplies.map((turn) => turn.selected_play?.notation || turn.selected_move?.notation || "pass").join(" | ")}`
       : "";
@@ -723,7 +778,7 @@ async function submitMove() {
 }
 
 async function showTip() {
-  if (!state.sessionId || !state.position || state.position.turn !== HUMAN_SIDE) return;
+  if (!state.sessionId || !state.position || state.animating || state.position.turn !== HUMAN_SIDE) return;
 
   try {
     const suggested = await api(`/sessions/${state.sessionId}/ai-turn`, {
