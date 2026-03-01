@@ -196,6 +196,20 @@ function applyAnimatedStep(position, step, side) {
   return { position: next, hit };
 }
 
+function summarizeStepEvents(startPosition, steps) {
+  let preview = clonePosition(startPosition);
+  const side = startPosition.turn;
+  let hits = 0;
+  for (const step of steps) {
+    const applied = applyAnimatedStep(preview, step, side);
+    preview = applied.position;
+    if (applied.hit.point !== null) {
+      hits += 1;
+    }
+  }
+  return { hits };
+}
+
 async function animateMoveReplay(startPosition, steps, finalPosition) {
   if (!Array.isArray(steps) || steps.length === 0) {
     state.position = finalPosition;
@@ -957,6 +971,7 @@ async function submitMove() {
     const startingPosition = clonePosition(state.position);
     const diceLabel = state.position ? `${state.position.dice[0]}-${state.position.dice[1]}` : "";
     const playedSteps = state.moveSteps.map((s) => ({ from_point: s.from_point, to_point: s.to_point }));
+    const stepSummary = summarizeStepEvents(startingPosition, playedSteps);
     const notation = playedSteps.map((s) => `${s.from_point}/${s.to_point}`).join(" ");
     const played = await api(`/sessions/${state.sessionId}/play-turn`, {
       method: "POST",
@@ -971,14 +986,15 @@ async function submitMove() {
       actor: "You",
       notation,
       dice: diceLabel,
-      note: `${played.played_move.quality} ${played.played_move.delta_vs_best.toFixed(3)}`,
+      note: `${played.played_move.quality} ${played.played_move.delta_vs_best.toFixed(3)}${stepSummary.hits ? ` hits:${stepSummary.hits}` : ""}`,
     });
     renderMoveBuilder();
     renderMoveLog();
     setLastReplay(startingPosition, playedSteps, played.current_position);
     await animateMoveReplay(startingPosition, playedSteps, played.current_position);
     setMoveHighlightFromSteps(playedSteps);
-    notify(formatMoveAnalysisSummary(played.analysis));
+    const summaryText = formatMoveAnalysisSummary(played.analysis);
+    notify(stepSummary.hits ? `${summaryText}\nHits: ${stepSummary.hits}` : summaryText);
     await refreshLegalMoves(true);
     await loadTrainingSummary();
     await loadAnalysisJobs();
@@ -998,19 +1014,21 @@ async function aiTurn(showNotify = true) {
       method: "POST",
       body: JSON.stringify({ apply_move: true }),
     });
+    const aiSteps = played.selected_move?.steps || [];
+    const stepSummary = summarizeStepEvents(startingPosition, aiSteps);
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog.push({
       actor: "AI",
       notation: played.selected_move.notation,
       dice: played.selected_move?.dice ? `${played.selected_move.dice[0]}-${played.selected_move.dice[1]}` : "",
-      note: `${played.selected_move.quality} ${played.selected_move.delta_vs_best.toFixed(3)}`,
+      note: `${played.selected_move.quality} ${played.selected_move.delta_vs_best.toFixed(3)}${stepSummary.hits ? ` hits:${stepSummary.hits}` : ""}`,
     });
     renderMoveBuilder();
     renderMoveLog();
-    setLastReplay(startingPosition, played.selected_move?.steps || [], played.current_position);
-    await animateMoveReplay(startingPosition, played.selected_move?.steps || [], played.current_position);
-    setMoveHighlightFromSteps(played.selected_move?.steps || []);
+    setLastReplay(startingPosition, aiSteps, played.current_position);
+    await animateMoveReplay(startingPosition, aiSteps, played.current_position);
+    setMoveHighlightFromSteps(aiSteps);
     await refreshLegalMoves(true);
     if (showNotify) {
       notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
