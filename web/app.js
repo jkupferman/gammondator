@@ -1210,6 +1210,8 @@ async function submitMove() {
         record_training: true,
       }),
     });
+    const humanPosition = played.human_position || played.current_position;
+    const autoAiTurns = Array.isArray(played.auto_ai_turns) ? played.auto_ai_turns : [];
     state.moveSteps = [];
     state.selectedFrom = null;
     state.legalMoves = [];
@@ -1221,21 +1223,40 @@ async function submitMove() {
       note: `${played.played_move.quality} ${played.played_move.delta_vs_best.toFixed(3)}${stepSummary.hits ? ` hits:${stepSummary.hits}` : ""}`,
     });
     renderMoveBuilder();
-    renderMoveLog();
-    setLastReplay(startingPosition, playedSteps, played.current_position);
-    await animateMoveReplay(startingPosition, playedSteps, played.current_position);
-    setSessionStatusLabel("active", played.move_count);
+    setLastReplay(startingPosition, playedSteps, humanPosition);
+    await animateMoveReplay(startingPosition, playedSteps, humanPosition);
+    setSessionStatusLabel("active", Number(played.move_count) || 0);
     setMoveHighlightFromSteps(playedSteps);
     const summaryText = formatMoveAnalysisSummary(played.analysis);
     notify(stepSummary.hits ? `${summaryText}\nHits: ${stepSummary.hits}` : summaryText);
+
+    for (const aiTurn of autoAiTurns) {
+      if (!aiTurn || !aiTurn.current_position) {
+        continue;
+      }
+      const aiStartPosition = clonePosition(state.position);
+      const aiSteps = aiTurn.selected_play?.notation === "pass" ? [] : (aiTurn.selected_play?.steps || []);
+      const aiStepSummary = summarizeStepEvents(aiStartPosition, aiSteps);
+      const aiNotation = aiTurn.selected_play?.notation || aiTurn.selected_move?.notation || "pass";
+      const aiDice = aiStartPosition?.dice ? `${aiStartPosition.dice[0]}-${aiStartPosition.dice[1]}` : "";
+      state.moveLog.push({
+        actor: "AI",
+        notation: aiNotation,
+        dice: aiDice,
+        note: `${aiTurn.selected_move.quality} ${aiTurn.selected_move.delta_vs_best.toFixed(3)}${aiStepSummary.hits ? ` hits:${aiStepSummary.hits}` : ""}`,
+      });
+      renderMoveLog();
+      setLastReplay(aiStartPosition, aiSteps, aiTurn.current_position);
+      await animateMoveReplay(aiStartPosition, aiSteps, aiTurn.current_position);
+      setSessionStatusLabel("active", Number(aiTurn.move_count) || Number(played.move_count) || 0);
+      setMoveHighlightFromSteps(aiSteps);
+    }
+
+    renderMoveLog();
     await refreshLegalMoves(true);
     await loadSessionTurns(state.sessionId);
     await loadTrainingSummary();
     await loadAnalysisJobs();
-    state.submittingMove = false;
-    renderMoveBuilder();
-    refreshButtons();
-    await autoAdvanceToHumanTurn();
   } catch (err) {
     notify(err.message, true);
   } finally {

@@ -32,6 +32,7 @@ from app.schemas import (
     LegalMovesRequest,
     LegalMovesResponse,
     Move,
+    Position,
     MoveScore,
     MoveStep,
     RatePlayedMoveRequest,
@@ -789,11 +790,31 @@ def play_session_turn_endpoint(
             played_move=payload.played_move,
             actor="human",
         )
+        human_position = advanced["current_position"]
+        auto_ai_turns: list[SessionAIMoveResponse] = []
+        final_position = human_position
+        final_move_count = int(advanced["move_count"])
+
+        if payload.auto_advance_to_human:
+            safety = 0
+            while final_position.turn != "black" and safety < 12:
+                ai_outcome = _apply_ai_turn_once(session_id=session_id, current_position=final_position)
+                if ai_outcome.current_position is None:
+                    break
+                auto_ai_turns.append(ai_outcome)
+                final_position = ai_outcome.current_position
+                final_move_count = int(ai_outcome.move_count)
+                safety += 1
+            if safety >= 12:
+                raise HTTPException(status_code=500, detail="auto-advance safety limit reached")
+
         return SessionPlayTurnResponse(
             session_id=int(advanced["session_id"]),
-            move_count=int(advanced["move_count"]),
+            move_count=final_move_count,
             analysis=analysis,
-            current_position=advanced["current_position"],
+            human_position=human_position,
+            auto_ai_turns=auto_ai_turns,
+            current_position=final_position,
         )
     except BackendUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -815,96 +836,115 @@ def play_session_ai_turn_endpoint(
     current_position = state["current_position"]
 
     try:
-        pass_move = Move(notation="pass", steps=[MoveStep(from_point=0, to_point=0)])
-        pass_score = MoveScore(
-            notation="pass",
-            equity=0.0,
-            delta_vs_best=0.0,
-            quality="excellent",
-            why=["Forced pass: no legal moves available."],
+        outcome = _apply_ai_turn_once(
+            session_id=session_id,
+            current_position=current_position,
+            next_dice=payload.next_dice,
+            apply_move=payload.apply_move,
+            move_count=int(state["move_count"]),
         )
-        next_dice = payload.next_dice or (random.randint(1, 6), random.randint(1, 6))
-        legal_moves = generate_legal_moves(current_position)
-        if not legal_moves:
-            if not payload.apply_move:
-                return SessionAIMoveResponse(
-                    session_id=session_id,
-                    selected_move=pass_score,
-                    selected_play=pass_move,
-                    top_moves=[pass_score],
-                    move_count=int(state["move_count"]),
-                    current_position=None,
-                )
+        return outcome
+    except BackendUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-            passed_position = current_position.model_copy(
-                update={
-                    "turn": "black" if current_position.turn == "white" else "white",
-                    "dice": next_dice,
-                }
-            )
-            updated = session_store.set_position(session_id=session_id, position=passed_position)
+
+def _apply_ai_turn_once(
+    session_id: int,
+    current_position: Position,
+    next_dice: tuple[int, int] | None = None,
+    apply_move: bool = True,
+    move_count: int | None = None,
+) -> SessionAIMoveResponse:
+    pass_move = Move(notation="pass", steps=[MoveStep(from_point=0, to_point=0)])
+    pass_score = MoveScore(
+        notation="pass",
+        equity=0.0,
+        delta_vs_best=0.0,
+        quality="excellent",
+        why=["Forced pass: no legal moves available."],
+    )
+    rolled_next_dice = next_dice or (random.randint(1, 6), random.randint(1, 6))
+    legal_moves = generate_legal_moves(current_position)
+    safe_move_count = 0 if move_count is None else int(move_count)
+
+    if not legal_moves:
+        if not apply_move:
             return SessionAIMoveResponse(
                 session_id=session_id,
                 selected_move=pass_score,
                 selected_play=pass_move,
                 top_moves=[pass_score],
-                move_count=int(updated["move_count"]),
-                current_position=updated["current_position"],
-            )
-
-        analyzed = runtime.analyze_move(
-            AnalyzeMoveRequest(
-                position=current_position,
-                played_move=legal_moves[0],
-                candidate_moves=legal_moves,
-            )
-        )
-        selected = next((move for move in legal_moves if move.notation == analyzed.best_move.notation), None)
-        if selected is None:
-            raise HTTPException(status_code=500, detail="best move not found in legal move list")
-
-        if not payload.apply_move:
-            return SessionAIMoveResponse(
-                session_id=session_id,
-                selected_move=analyzed.best_move,
-                selected_play=selected,
-                top_moves=analyzed.top_moves,
-                move_count=int(state["move_count"]),
+                move_count=safe_move_count,
                 current_position=None,
             )
 
-        applied_analysis = runtime.analyze_move(
-            AnalyzeMoveRequest(
-                position=current_position,
-                played_move=selected,
-                candidate_moves=legal_moves,
-            )
+        passed_position = current_position.model_copy(
+            update={
+                "turn": "black" if current_position.turn == "white" else "white",
+                "dice": rolled_next_dice,
+            }
         )
-        next_position = apply_move_to_position(
-            position=current_position,
-            move=selected,
-            next_dice=next_dice,
-        )
-        advanced = session_store.apply_turn(
+        updated = session_store.set_position(session_id=session_id, position=passed_position)
+        return SessionAIMoveResponse(
             session_id=session_id,
-            previous_position=current_position,
-            new_position=next_position,
-            analysis=applied_analysis,
-            played_move=selected,
-            actor="ai",
+            selected_move=pass_score,
+            selected_play=pass_move,
+            top_moves=[pass_score],
+            move_count=int(updated["move_count"]),
+            current_position=updated["current_position"],
         )
+
+    analyzed = runtime.analyze_move(
+        AnalyzeMoveRequest(
+            position=current_position,
+            played_move=legal_moves[0],
+            candidate_moves=legal_moves,
+        )
+    )
+    selected = next((move for move in legal_moves if move.notation == analyzed.best_move.notation), None)
+    if selected is None:
+        raise HTTPException(status_code=500, detail="best move not found in legal move list")
+
+    if not apply_move:
         return SessionAIMoveResponse(
             session_id=session_id,
             selected_move=analyzed.best_move,
             selected_play=selected,
             top_moves=analyzed.top_moves,
-            move_count=int(advanced["move_count"]),
-            current_position=advanced["current_position"],
+            move_count=safe_move_count,
+            current_position=None,
         )
-    except BackendUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    applied_analysis = runtime.analyze_move(
+        AnalyzeMoveRequest(
+            position=current_position,
+            played_move=selected,
+            candidate_moves=legal_moves,
+        )
+    )
+    next_position = apply_move_to_position(
+        position=current_position,
+        move=selected,
+        next_dice=rolled_next_dice,
+    )
+    advanced = session_store.apply_turn(
+        session_id=session_id,
+        previous_position=current_position,
+        new_position=next_position,
+        analysis=applied_analysis,
+        played_move=selected,
+        actor="ai",
+    )
+    return SessionAIMoveResponse(
+        session_id=session_id,
+        selected_move=analyzed.best_move,
+        selected_play=selected,
+        top_moves=analyzed.top_moves,
+        move_count=int(advanced["move_count"]),
+        current_position=advanced["current_position"],
+    )
 
 
 def _validate_candidate_moves(position, candidate_moves) -> None:

@@ -202,6 +202,7 @@ class SessionPlayTurnRequest(BaseModel):
     played_move: Move
     next_dice: tuple[int, int] | None = None
     record_training: bool = True
+    auto_advance_to_human: bool = True
 
     @field_validator("next_dice")
     @classmethod
@@ -218,6 +219,8 @@ class SessionPlayTurnResponse(BaseModel):
     session_id: int
     move_count: int
     analysis: AnalyzeMoveResponse
+    human_position: Position
+    auto_ai_turns: list["SessionAIMoveResponse"] = Field(default_factory=list)
     current_position: Position
 
 

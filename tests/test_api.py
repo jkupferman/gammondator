@@ -101,8 +101,10 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert played["session_id"] == session_id
     assert played["move_count"] == 1
     assert played["analysis"]["played_move"]["notation"] == "24/18 8/7"
+    assert played["human_position"]["turn"] == "black"
     assert played["current_position"]["turn"] == "black"
     assert played["current_position"]["dice"] == [3, 2]
+    assert played["auto_ai_turns"] == []
 
     report_response = client.get(f"/sessions/{session_id}/report?top_n=3")
     assert report_response.status_code == 200
@@ -178,6 +180,30 @@ def test_session_ai_turn() -> None:
     assert len(turns) >= 1
     assert turns[-1]["actor"] == "ai"
     assert turns[-1]["dice"] == [6, 1]
+
+
+def test_play_turn_auto_advances_ai_until_human_turn() -> None:
+    start_black = {**SAMPLE_PAYLOAD["position"], "turn": "black", "dice": [6, 1]}
+    create_response = client.post("/sessions", json={"initial_position": start_black})
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+
+    state = client.get(f"/sessions/{session_id}")
+    assert state.status_code == 200
+    legal = client.post("/legal-moves", json={"position": state.json()["current_position"]})
+    assert legal.status_code == 200
+    first_move = legal.json()["moves"][0]
+
+    response = client.post(
+        f"/sessions/{session_id}/play-turn",
+        json={"played_move": first_move, "record_training": True},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["human_position"]["turn"] == "white"
+    assert len(payload["auto_ai_turns"]) >= 1
+    assert payload["current_position"]["turn"] == "black"
+    assert payload["move_count"] >= 2
 
 
 def test_session_ai_turn_preview_only() -> None:
