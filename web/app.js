@@ -836,7 +836,12 @@ async function refreshLegalMoves() {
     render();
 
     if (state.position.turn === HUMAN_SIDE && state.legalMoves.length === 0 && !state.submittingMove) {
-      notify("No legal move for black. Passing turn.");
+      const d1 = state.position.dice[0];
+      const d2 = state.position.dice[1];
+      const reason = state.position.bar_black > 0
+        ? `No legal bar entry on ${d1}-${d2}.`
+        : `No legal move on ${d1}-${d2}.`;
+      setTransientStatus(`${reason} Auto-passing turn...`, false, 2200);
       await submitPassMove();
     }
   } catch (err) {
@@ -956,7 +961,7 @@ async function submitPassMove() {
     state.position = played.current_position;
     state.moveSteps = [];
     state.selectedFrom = null;
-    notify("Black passed. White played automatically.");
+    setTransientStatus("Auto-pass applied. White played automatically.", false, 2200);
     await refreshLegalMoves();
   } catch (err) {
     notify(err.message, true);
