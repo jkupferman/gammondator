@@ -942,7 +942,7 @@ function renderSessionPicker(sessions) {
 async function loadSessionTurns(sessionId) {
   const actor = currentTurnActorFilter();
   const actorQuery = actor === "all" ? "" : `&actor=${encodeURIComponent(actor)}`;
-  const data = await api(`/sessions/${sessionId}/turns?limit=300${actorQuery}`);
+  const data = await api(`/sessions/${sessionId}/turns?limit=${currentTimelineLimit()}${actorQuery}`);
   const turns = data.turns || [];
   state.sessionTurns = turns;
   state.moveLog = turns.map((turn) => {
@@ -1532,7 +1532,12 @@ el.profileId.addEventListener("change", async () => {
 });
 el.autoAiToggle.addEventListener("change", savePreferences);
 el.animationMs.addEventListener("change", savePreferences);
-el.timelineLimit.addEventListener("change", savePreferences);
+el.timelineLimit.addEventListener("change", async () => {
+  savePreferences();
+  if (state.sessionId) {
+    await loadSessionTurns(state.sessionId);
+  }
+});
 el.turnActorFilter.addEventListener("change", async () => {
   savePreferences();
   if (state.sessionId) {
