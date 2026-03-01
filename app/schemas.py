@@ -330,6 +330,11 @@ class AnalysisJobStatsResponse(BaseModel):
     failed: int
 
 
+class AnalysisJobCleanupResponse(BaseModel):
+    profile_id: str
+    deleted: int
+
+
 class TrainingDashboardResponse(BaseModel):
     summary: TrainingSummaryResponse
     leaks: TrainingLeaksResponse

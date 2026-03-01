@@ -22,6 +22,7 @@ from app.schemas import (
     AnalyzerInfoResponse,
     AnalysisJobCreateRequest,
     AnalysisJobBatchRunResponse,
+    AnalysisJobCleanupResponse,
     AnalysisJobListResponse,
     AnalysisJobResponse,
     AnalysisJobStatsResponse,
@@ -217,6 +218,17 @@ def get_analysis_job_endpoint(job_id: int) -> AnalysisJobResponse:
     return _job_to_response(job)
 
 
+@app.delete("/analysis-jobs/{job_id}", response_model=AnalysisJobCleanupResponse)
+def delete_analysis_job_endpoint(job_id: int) -> AnalysisJobCleanupResponse:
+    job = analysis_store.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"analysis job {job_id} not found")
+    if str(job["status"]) in {"pending", "running"}:
+        raise HTTPException(status_code=400, detail="cannot delete pending/running job")
+    deleted = analysis_store.delete_job(job_id)
+    return AnalysisJobCleanupResponse(profile_id=str(job["profile_id"]), deleted=deleted)
+
+
 @app.post("/analysis-jobs/{job_id}/run", response_model=AnalysisJobResponse)
 def run_analysis_job_endpoint(job_id: int) -> AnalysisJobResponse:
     return _run_analysis_job(job_id)
@@ -269,6 +281,15 @@ def run_batch_analysis_jobs_endpoint(
         failed=failed,
         job_ids=job_ids,
     )
+
+
+@app.post("/analysis-jobs/cleanup", response_model=AnalysisJobCleanupResponse)
+def cleanup_analysis_jobs_endpoint(
+    profile_id: str = "default",
+    older_than_iso: str | None = None,
+) -> AnalysisJobCleanupResponse:
+    deleted = analysis_store.cleanup(profile_id=profile_id, older_than_iso=older_than_iso)
+    return AnalysisJobCleanupResponse(profile_id=profile_id, deleted=deleted)
 
 
 @app.post("/sessions", response_model=SessionStateResponse)

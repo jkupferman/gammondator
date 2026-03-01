@@ -471,6 +471,29 @@ def test_analysis_job_stats_endpoint() -> None:
     assert data["failed"] >= 0
 
 
+def test_analysis_job_cleanup_endpoints() -> None:
+    created = client.post(
+        "/analysis-jobs",
+        json={"profile_id": "cleanup-user", "position": SAMPLE_PAYLOAD["position"]},
+    ).json()
+    job_id = created["job_id"]
+
+    # Pending jobs cannot be deleted directly.
+    reject_delete = client.delete(f"/analysis-jobs/{job_id}")
+    assert reject_delete.status_code == 400
+
+    # Run and then delete.
+    client.post(f"/analysis-jobs/{job_id}/run")
+    ok_delete = client.delete(f"/analysis-jobs/{job_id}")
+    assert ok_delete.status_code == 200
+    assert ok_delete.json()["deleted"] == 1
+
+    # Bulk cleanup should succeed and return an integer.
+    cleanup = client.post("/analysis-jobs/cleanup?profile_id=cleanup-user")
+    assert cleanup.status_code == 200
+    assert cleanup.json()["deleted"] >= 0
+
+
 def test_training_dashboard_endpoint() -> None:
     response = client.get("/training/dashboard?profile_id=default")
     assert response.status_code == 200

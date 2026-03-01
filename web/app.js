@@ -38,6 +38,7 @@ const el = {
   queueAnalysisBtn: document.getElementById("queueAnalysisBtn"),
   runNextAnalysisBtn: document.getElementById("runNextAnalysisBtn"),
   retryLatestJobBtn: document.getElementById("retryLatestJobBtn"),
+  cleanupJobsBtn: document.getElementById("cleanupJobsBtn"),
   analysisJobs: document.getElementById("analysisJobs"),
   drillStatus: document.getElementById("drillStatus"),
   drillAnswer: document.getElementById("drillAnswer"),
@@ -462,6 +463,19 @@ async function retryLatestJob() {
   }
 }
 
+async function cleanupFinishedJobs() {
+  try {
+    const cleaned = await api(
+      `/analysis-jobs/cleanup?profile_id=${encodeURIComponent(currentProfileId())}`,
+      { method: "POST" },
+    );
+    notify(`Cleaned ${cleaned.deleted} finished jobs.`);
+    await loadAnalysisJobs();
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
 el.newSessionBtn.addEventListener("click", newSession);
 el.loadLegalBtn.addEventListener("click", loadLegalMoves);
 el.submitMoveBtn.addEventListener("click", submitMove);
@@ -478,6 +492,7 @@ el.submitDrillBtn.addEventListener("click", submitDrillAttempt);
 el.queueAnalysisBtn.addEventListener("click", queueCurrentPositionAnalysis);
 el.runNextAnalysisBtn.addEventListener("click", runNextAnalysisJob);
 el.retryLatestJobBtn.addEventListener("click", retryLatestJob);
+el.cleanupJobsBtn.addEventListener("click", cleanupFinishedJobs);
 
 refreshButtons();
 renderBoard();

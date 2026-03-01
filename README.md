@@ -29,8 +29,10 @@ Server runs at `http://127.0.0.1:8000`.
 - `GET /analysis-jobs/{job_id}`
 - `POST /analysis-jobs/{job_id}/run`
 - `POST /analysis-jobs/{job_id}/retry`
+- `DELETE /analysis-jobs/{job_id}`
 - `POST /analysis-jobs/run-next`
 - `POST /analysis-jobs/run-batch`
+- `POST /analysis-jobs/cleanup`
 - `POST /sessions`
 - `GET /sessions/{session_id}`
 - `POST /sessions/{session_id}/play-turn`
@@ -235,8 +237,10 @@ Run queued jobs:
 ```bash
 curl -X POST 'http://127.0.0.1:8000/analysis-jobs/1/run'
 curl -X POST 'http://127.0.0.1:8000/analysis-jobs/1/retry'
+curl -X DELETE 'http://127.0.0.1:8000/analysis-jobs/1'
 curl -X POST 'http://127.0.0.1:8000/analysis-jobs/run-next?profile_id=default'
 curl -X POST 'http://127.0.0.1:8000/analysis-jobs/run-batch?profile_id=default&limit=20'
+curl -X POST 'http://127.0.0.1:8000/analysis-jobs/cleanup?profile_id=default'
 ```
 
 Inspect jobs:
@@ -273,6 +277,7 @@ The web UI supports:
 - drill mode load/answer flow
 - analysis queue create/run-next controls and job list
 - retry-latest-job control
+- cleanup-finished-jobs control
 
 ## Testing
 

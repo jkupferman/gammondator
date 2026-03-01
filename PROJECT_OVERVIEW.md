@@ -34,7 +34,11 @@ Gammondator solves this by running in a live game loop:
   - `GET /analysis-jobs/stats`
   - `GET /analysis-jobs/{job_id}`
   - `POST /analysis-jobs/{job_id}/run`
+  - `POST /analysis-jobs/{job_id}/retry`
+  - `DELETE /analysis-jobs/{job_id}`
   - `POST /analysis-jobs/run-next`
+  - `POST /analysis-jobs/run-batch`
+  - `POST /analysis-jobs/cleanup`
   - `POST /sessions`
   - `GET /sessions/{session_id}`
   - `POST /sessions/{session_id}/play-turn`

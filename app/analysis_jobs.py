@@ -187,6 +187,36 @@ class AnalysisJobStore:
             "failed": int(row["failed"] or 0),
         }
 
+    def cleanup(self, profile_id: str = "default", older_than_iso: str | None = None) -> int:
+        with self._connect() as conn:
+            if older_than_iso:
+                cursor = conn.execute(
+                    """
+                    DELETE FROM analysis_jobs
+                    WHERE profile_id = ?
+                      AND status IN ('completed', 'failed')
+                      AND created_at < ?
+                    """,
+                    (profile_id, older_than_iso),
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    DELETE FROM analysis_jobs
+                    WHERE profile_id = ?
+                      AND status IN ('completed', 'failed')
+                    """,
+                    (profile_id,),
+                )
+            conn.commit()
+            return int(cursor.rowcount)
+
+    def delete_job(self, job_id: int) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM analysis_jobs WHERE id = ?", (job_id,))
+            conn.commit()
+            return int(cursor.rowcount)
+
     def reset_to_pending(self, job_id: int) -> dict[str, object]:
         now = datetime.now(tz=timezone.utc).isoformat()
         with self._connect() as conn:
