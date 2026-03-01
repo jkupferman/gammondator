@@ -240,18 +240,22 @@ function formatMoveAnalysisSummary(analysis) {
     blunder: "Major mistake.",
   }[played.quality] || "Move reviewed.";
   const loss = Number(played.delta_vs_best || 0);
-  const isOptimal = loss <= 0.001;
+  const isOptimal = loss <= 0.000001;
+  const isRoundedZero = Number(loss.toFixed(3)) === 0;
+  const isNearOptimal = !isOptimal && isRoundedZero;
   const playedHuman = humanizeNotation(played.notation);
   const bestHuman = humanizeNotation(best.notation);
-  const playedDisplay = isOptimal ? canonicalizeNotation(playedHuman) : playedHuman;
-  const bestDisplay = isOptimal ? canonicalizeNotation(bestHuman) : bestHuman;
-  const headline = isOptimal ? "Optimal move." : qualityTitle;
+  const playedDisplay = isOptimal || isNearOptimal ? canonicalizeNotation(playedHuman) : playedHuman;
+  const bestDisplay = isOptimal || isNearOptimal ? canonicalizeNotation(bestHuman) : bestHuman;
+  const headline = isOptimal ? "Optimal move." : isNearOptimal ? "Near-optimal move." : qualityTitle;
   const currentWinPct = estimateWinPctFromEquity(played.equity);
   const winDelta = state.lastHumanWinPct === null ? null : currentWinPct - state.lastHumanWinPct;
   const sharedSteps = countSharedSteps(playedDisplay, bestDisplay);
   const lossHint =
     isOptimal
       ? "You found an optimal move."
+      : isNearOptimal
+      ? "Essentially tied with best line at displayed precision."
       : loss < 0.02
       ? "You were very close to optimal."
       : loss < 0.08
@@ -260,6 +264,7 @@ function formatMoveAnalysisSummary(analysis) {
           ? "There was a clearly better option."
           : "This choice gives up a lot of equity.";
   const firstReason = reasons[0] || "No notes available.";
+  const whyPrefix = isOptimal || isNearOptimal ? "Trade-off note" : "Why";
   const nextStep = buildNextStepAdvice({
     isOptimal,
     playedNotation: playedDisplay,
@@ -281,7 +286,7 @@ function formatMoveAnalysisSummary(analysis) {
     equityLossLine: `Equity loss: ${loss.toFixed(3)}. ${lossHint}`,
     winPctValue: currentWinPct,
     winDelta,
-    whyLine: `Why: ${firstReason}`,
+    whyLine: `${whyPrefix}: ${firstReason}`,
     nextStepLine,
     sharedSteps,
   };
