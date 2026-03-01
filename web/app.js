@@ -29,6 +29,7 @@ const el = {
   autoAiToggle: document.getElementById("autoAiToggle"),
   sessionReportBtn: document.getElementById("sessionReportBtn"),
   turnTimelineBtn: document.getElementById("turnTimelineBtn"),
+  downloadTimelineBtn: document.getElementById("downloadTimelineBtn"),
   closeSessionBtn: document.getElementById("closeSessionBtn"),
   refreshSessionsBtn: document.getElementById("refreshSessionsBtn"),
   sessionPicker: document.getElementById("sessionPicker"),
@@ -838,6 +839,7 @@ function refreshButtons() {
   el.rollBtn.disabled = !active || blocked;
   el.sessionReportBtn.disabled = !active || blocked;
   el.turnTimelineBtn.disabled = !active || blocked;
+  el.downloadTimelineBtn.disabled = !active || blocked;
   el.closeSessionBtn.disabled = !active || blocked;
   el.cubeCheckBtn.disabled = !active || blocked;
   el.queueAnalysisBtn.disabled = !active || blocked;
@@ -1241,6 +1243,30 @@ async function loadTurnTimeline() {
   }
 }
 
+async function downloadTurnTimeline() {
+  if (!state.sessionId) return;
+  try {
+    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=300`);
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(body || `HTTP ${response.status}`);
+    }
+    const markdown = await response.text();
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `gammondator-session-${state.sessionId}-timeline.md`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    notify(`Downloaded timeline for session #${state.sessionId}.`);
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
 function renderDrillStatus() {
   if (!state.currentDrill) {
     el.drillStatus.textContent = "No drill loaded.";
@@ -1385,6 +1411,7 @@ el.clearMoveBtn.addEventListener("click", clearMove);
 el.replayMoveBtn.addEventListener("click", replayLastMove);
 el.sessionReportBtn.addEventListener("click", loadSessionReport);
 el.turnTimelineBtn.addEventListener("click", loadTurnTimeline);
+el.downloadTimelineBtn.addEventListener("click", downloadTurnTimeline);
 el.closeSessionBtn.addEventListener("click", closeSession);
 el.refreshSessionsBtn.addEventListener("click", loadSessionList);
 el.resumeSessionBtn.addEventListener("click", resumeSelectedSession);
@@ -1431,6 +1458,11 @@ window.addEventListener("keydown", (event) => {
   if ((event.key === "r" || event.key === "R") && !el.replayMoveBtn.disabled) {
     event.preventDefault();
     replayLastMove();
+    return;
+  }
+  if ((event.key === "t" || event.key === "T") && !el.turnTimelineBtn.disabled) {
+    event.preventDefault();
+    loadTurnTimeline();
     return;
   }
   if (event.key === "Backspace" && !el.undoStepBtn.disabled) {
