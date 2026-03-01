@@ -183,6 +183,12 @@ def test_session_roll_endpoint() -> None:
     assert data["position"]["dice"] == data["dice"]
 
 
+def test_session_turns_not_found() -> None:
+    response = client.get("/sessions/999999/turns")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
+
+
 def test_list_sessions_by_profile() -> None:
     client.post("/sessions", json={"initial_position": SAMPLE_PAYLOAD["position"], "profile_id": "alpha"})
     client.post("/sessions", json={"initial_position": SAMPLE_PAYLOAD["position"], "profile_id": "beta"})

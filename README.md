@@ -174,6 +174,12 @@ Get a post-game style session report:
 curl 'http://127.0.0.1:8000/sessions/1/report?top_n=5'
 ```
 
+Load ordered turn history for a session:
+
+```bash
+curl 'http://127.0.0.1:8000/sessions/1/turns?limit=200'
+```
+
 Choose an AI move directly from `position + dice` (no client candidate list needed):
 
 ```bash
