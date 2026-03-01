@@ -6,6 +6,8 @@ const state = {
   selectedFrom: null,
   dragFrom: null,
   touchDragging: false,
+  lastMoveHighlight: null,
+  highlightTimerId: null,
   currentDrill: null,
 };
 
@@ -71,6 +73,68 @@ function currentDice() {
 function currentProfileId() {
   const value = (el.profileId.value || "").trim();
   return value || "default";
+}
+
+function clearMoveHighlight(shouldRender = true) {
+  if (state.highlightTimerId !== null) {
+    clearTimeout(state.highlightTimerId);
+    state.highlightTimerId = null;
+  }
+  state.lastMoveHighlight = null;
+  if (shouldRender) {
+    renderBoard();
+  }
+}
+
+function setMoveHighlightFromSteps(steps) {
+  if (!Array.isArray(steps) || steps.length === 0) {
+    clearMoveHighlight();
+    return;
+  }
+
+  const sourcePoints = new Set();
+  const targetPoints = new Set();
+  let barActive = false;
+  let offWhiteActive = false;
+  let offBlackActive = false;
+
+  for (const step of steps) {
+    if (!step) continue;
+    const from = Number(step.from_point);
+    const to = Number(step.to_point);
+
+    if (from >= 1 && from <= 24) {
+      sourcePoints.add(from);
+    } else if (from === 0 || from === 25) {
+      barActive = true;
+    }
+
+    if (to >= 1 && to <= 24) {
+      targetPoints.add(to);
+    } else if (to === 0) {
+      offWhiteActive = true;
+    } else if (to === 25) {
+      offBlackActive = true;
+    }
+  }
+
+  if (state.highlightTimerId !== null) {
+    clearTimeout(state.highlightTimerId);
+    state.highlightTimerId = null;
+  }
+  state.lastMoveHighlight = {
+    sourcePoints,
+    targetPoints,
+    barActive,
+    offWhiteActive,
+    offBlackActive,
+  };
+  renderBoard();
+  state.highlightTimerId = window.setTimeout(() => {
+    state.lastMoveHighlight = null;
+    state.highlightTimerId = null;
+    renderBoard();
+  }, 900);
 }
 
 function getPrefixMatchingMoves() {
@@ -304,6 +368,7 @@ async function refreshLegalMoves(silent = true) {
 function renderBoard() {
   if (!state.position) {
     el.boardGrid.innerHTML = "";
+    el.offTrays.innerHTML = "";
     return;
   }
 
@@ -325,7 +390,9 @@ function renderBoard() {
     const pointEl = document.createElement("button");
     const isSelected = state.selectedFrom === point;
     const isValidTarget = validTargets.has(point);
-    pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${isSelected ? " selected" : ""}${isValidTarget ? " valid-target" : ""}`;
+    const isMoveSource = Boolean(state.lastMoveHighlight?.sourcePoints?.has(point));
+    const isMoveTarget = Boolean(state.lastMoveHighlight?.targetPoints?.has(point));
+    pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${isSelected ? " selected" : ""}${isValidTarget ? " valid-target" : ""}${isMoveSource ? " move-source" : ""}${isMoveTarget ? " move-target" : ""}`;
     pointEl.dataset.point = String(point);
     pointEl.addEventListener("click", () => onPointClick(point));
     pointEl.addEventListener("dragover", onPointDragOver);
@@ -383,7 +450,7 @@ function renderBoard() {
   topRow.appendChild(buildHalf(topLeft, "down"));
 
   const bar = document.createElement("div");
-  bar.className = `board-bar${state.selectedFrom === 25 || state.selectedFrom === 0 ? " selected" : ""}`;
+  bar.className = `board-bar${state.selectedFrom === 25 || state.selectedFrom === 0 ? " selected" : ""}${state.lastMoveHighlight?.barActive ? " move-source" : ""}`;
   const barLabel = document.createElement("div");
   barLabel.className = "bar-label";
   barLabel.textContent = "BAR";
@@ -460,11 +527,11 @@ function renderBoard() {
   const off = document.createElement("div");
   off.className = "off-trays-inner";
   off.innerHTML = `
-    <div class="off-tray">
+    <div class="off-tray${state.lastMoveHighlight?.offWhiteActive ? " move-target" : ""}">
       <div class="off-title">White Off</div>
       <div class="off-stack">${renderOffCheckers("white", state.position.off_white)}</div>
     </div>
-    <div class="off-tray">
+    <div class="off-tray${state.lastMoveHighlight?.offBlackActive ? " move-target" : ""}">
       <div class="off-title">Black Off</div>
       <div class="off-stack">${renderOffCheckers("black", state.position.off_black)}</div>
     </div>
@@ -585,6 +652,7 @@ async function newSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.legalMoves = [];
+    clearMoveHighlight(false);
     el.sessionStatus.textContent = `Session #${state.sessionId} (${created.status})`;
     refreshButtons();
     renderBoard();
@@ -605,11 +673,12 @@ async function loadLegalMoves() {
 async function submitMove() {
   if (!state.sessionId || state.moveSteps.length === 0) return;
   try {
-    const notation = state.moveSteps.map((s) => `${s.from_point}/${s.to_point}`).join(" ");
+    const playedSteps = state.moveSteps.map((s) => ({ from_point: s.from_point, to_point: s.to_point }));
+    const notation = playedSteps.map((s) => `${s.from_point}/${s.to_point}`).join(" ");
     const played = await api(`/sessions/${state.sessionId}/play-turn`, {
       method: "POST",
       body: JSON.stringify({
-        played_move: { notation, steps: state.moveSteps },
+        played_move: { notation, steps: playedSteps },
         record_training: true,
       }),
     });
@@ -617,6 +686,7 @@ async function submitMove() {
     state.moveSteps = [];
     state.selectedFrom = null;
     renderMoveBuilder();
+    setMoveHighlightFromSteps(playedSteps);
     notify(JSON.stringify(played.analysis, null, 2));
     await refreshLegalMoves(true);
     await loadTrainingSummary();
@@ -637,6 +707,7 @@ async function aiTurn() {
     state.moveSteps = [];
     state.selectedFrom = null;
     renderMoveBuilder();
+    setMoveHighlightFromSteps(played.selected_move?.steps || []);
     await refreshLegalMoves(true);
     notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
   } catch (err) {
@@ -651,6 +722,7 @@ async function rollDice() {
     state.position = rolled.position;
     state.moveSteps = [];
     state.selectedFrom = null;
+    clearMoveHighlight(false);
     renderMoveBuilder();
     el.die1.value = String(rolled.dice[0]);
     el.die2.value = String(rolled.dice[1]);
@@ -671,6 +743,7 @@ async function closeSession() {
     state.legalMoves = [];
     state.moveSteps = [];
     state.selectedFrom = null;
+    clearMoveHighlight(false);
     el.sessionStatus.textContent = "No session";
     refreshButtons();
     renderBoard();
@@ -714,6 +787,7 @@ function clearMove() {
   state.moveSteps = [];
   state.selectedFrom = null;
   clearDragState();
+  clearMoveHighlight(false);
   renderMoveBuilder();
   renderBoard();
 }
@@ -762,6 +836,7 @@ async function loadDrill() {
     state.position = state.currentDrill.position;
     state.moveSteps = [];
     state.selectedFrom = null;
+    clearMoveHighlight(false);
     renderMoveBuilder();
     await refreshLegalMoves(true);
     renderDrillStatus();

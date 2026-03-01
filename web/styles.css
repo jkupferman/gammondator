@@ -158,6 +158,14 @@ button.valid-target-btn {
   filter: drop-shadow(0 0 8px rgba(15,109,101,0.85));
 }
 
+.board-point.move-source::before {
+  box-shadow: 0 0 0 2px rgba(31, 64, 122, 0.45);
+}
+
+.board-point.move-target::before {
+  filter: drop-shadow(0 0 8px rgba(15,109,101,0.95));
+}
+
 .point-number {
   position: relative;
   z-index: 2;
@@ -234,6 +242,10 @@ button.valid-target-btn {
   outline: 3px solid var(--accent);
 }
 
+.board-bar.move-source {
+  outline: 3px solid rgba(31, 64, 122, 0.7);
+}
+
 .board-bar-spacer {
   border-radius: 6px;
   background: rgba(86,50,30,0.55);
@@ -281,6 +293,10 @@ button.valid-target-btn {
   border-radius: 8px;
   color: #fff2e0;
   padding: 8px;
+}
+
+.off-tray.move-target {
+  box-shadow: 0 0 0 3px rgba(15,109,101,0.45);
 }
 
 .off-title {
