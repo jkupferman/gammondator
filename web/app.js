@@ -28,6 +28,7 @@ const el = {
   rollBtn: document.getElementById("rollBtn"),
   autoAiToggle: document.getElementById("autoAiToggle"),
   sessionReportBtn: document.getElementById("sessionReportBtn"),
+  turnTimelineBtn: document.getElementById("turnTimelineBtn"),
   closeSessionBtn: document.getElementById("closeSessionBtn"),
   refreshSessionsBtn: document.getElementById("refreshSessionsBtn"),
   sessionPicker: document.getElementById("sessionPicker"),
@@ -827,6 +828,7 @@ function refreshButtons() {
   el.aiSuggestBtn.disabled = !active || blocked;
   el.rollBtn.disabled = !active || blocked;
   el.sessionReportBtn.disabled = !active || blocked;
+  el.turnTimelineBtn.disabled = !active || blocked;
   el.closeSessionBtn.disabled = !active || blocked;
   el.cubeCheckBtn.disabled = !active || blocked;
   el.queueAnalysisBtn.disabled = !active || blocked;
@@ -1213,6 +1215,21 @@ async function loadSessionReport() {
   }
 }
 
+async function loadTurnTimeline() {
+  if (!state.sessionId) return;
+  try {
+    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=300`);
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(body || `HTTP ${response.status}`);
+    }
+    const markdown = await response.text();
+    notify(markdown);
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
 function renderDrillStatus() {
   if (!state.currentDrill) {
     el.drillStatus.textContent = "No drill loaded.";
@@ -1356,6 +1373,7 @@ el.undoStepBtn.addEventListener("click", undoMoveStep);
 el.clearMoveBtn.addEventListener("click", clearMove);
 el.replayMoveBtn.addEventListener("click", replayLastMove);
 el.sessionReportBtn.addEventListener("click", loadSessionReport);
+el.turnTimelineBtn.addEventListener("click", loadTurnTimeline);
 el.closeSessionBtn.addEventListener("click", closeSession);
 el.refreshSessionsBtn.addEventListener("click", loadSessionList);
 el.resumeSessionBtn.addEventListener("click", resumeSelectedSession);
