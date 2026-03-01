@@ -50,6 +50,7 @@ class TrainingStore:
                 CREATE TABLE IF NOT EXISTS move_reviews (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     created_at TEXT NOT NULL,
+                    profile_id TEXT NOT NULL DEFAULT 'default',
                     turn TEXT NOT NULL,
                     dice_1 INTEGER NOT NULL,
                     dice_2 INTEGER NOT NULL,
@@ -65,6 +66,10 @@ class TrainingStore:
                 """
             )
             columns = {row[1] for row in conn.execute("PRAGMA table_info(move_reviews)")}
+            if "profile_id" not in columns:
+                conn.execute(
+                    "ALTER TABLE move_reviews ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'default'"
+                )
             if "leak_category" not in columns:
                 conn.execute(
                     "ALTER TABLE move_reviews ADD COLUMN leak_category TEXT NOT NULL DEFAULT 'general'"
@@ -74,6 +79,7 @@ class TrainingStore:
                 CREATE TABLE IF NOT EXISTS drill_attempts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     created_at TEXT NOT NULL,
+                    profile_id TEXT NOT NULL DEFAULT 'default',
                     review_id INTEGER NOT NULL,
                     chosen_notation TEXT NOT NULL,
                     expected_notation TEXT NOT NULL,
@@ -82,9 +88,14 @@ class TrainingStore:
                 )
                 """
             )
+            drill_columns = {row[1] for row in conn.execute("PRAGMA table_info(drill_attempts)")}
+            if "profile_id" not in drill_columns:
+                conn.execute(
+                    "ALTER TABLE drill_attempts ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'default'"
+                )
             conn.commit()
 
-    def record_review(self, position: Position, analysis: AnalyzeMoveResponse) -> int:
+    def record_review(self, position: Position, analysis: AnalyzeMoveResponse, profile_id: str = "default") -> int:
         now = datetime.now(tz=timezone.utc).isoformat()
         leak_category = _classify_leak_category(analysis.played_move.why)
         with self._connect() as conn:
@@ -92,6 +103,7 @@ class TrainingStore:
                 """
                 INSERT INTO move_reviews (
                     created_at,
+                    profile_id,
                     turn,
                     dice_1,
                     dice_2,
@@ -103,10 +115,11 @@ class TrainingStore:
                     quality,
                     leak_category,
                     position_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     now,
+                    profile_id,
                     position.turn,
                     int(position.dice[0]),
                     int(position.dice[1]),
@@ -123,7 +136,7 @@ class TrainingStore:
             conn.commit()
             return int(cursor.lastrowid)
 
-    def summary(self) -> TrainingSummary:
+    def summary(self, profile_id: str = "default") -> TrainingSummary:
         with self._connect() as conn:
             row = conn.execute(
                 """
@@ -135,7 +148,10 @@ class TrainingStore:
                     SUM(CASE WHEN quality = 'blunder' THEN 1 ELSE 0 END) AS blunders,
                     MAX(created_at) AS last_recorded_at
                 FROM move_reviews
+                WHERE profile_id = ?
                 """
+            ,
+                (profile_id,),
             ).fetchone()
 
             return TrainingSummary(
@@ -147,7 +163,7 @@ class TrainingStore:
                 last_recorded_at=row["last_recorded_at"],
             )
 
-    def top_mistakes(self, limit: int = 20) -> list[dict[str, object]]:
+    def top_mistakes(self, limit: int = 20, profile_id: str = "default") -> list[dict[str, object]]:
         safe_limit = max(1, min(limit, 100))
         with self._connect() as conn:
             rows = conn.execute(
@@ -166,10 +182,11 @@ class TrainingStore:
                     quality,
                     leak_category
                 FROM move_reviews
+                WHERE profile_id = ?
                 ORDER BY equity_loss DESC, created_at DESC
                 LIMIT ?
                 """,
-                (safe_limit,),
+                (profile_id, safe_limit),
             ).fetchall()
 
             return [
@@ -189,7 +206,7 @@ class TrainingStore:
                 for row in rows
             ]
 
-    def leak_summary(self) -> list[dict[str, object]]:
+    def leak_summary(self, profile_id: str = "default") -> list[dict[str, object]]:
         with self._connect() as conn:
             rows = conn.execute(
                 """
@@ -199,9 +216,12 @@ class TrainingStore:
                     ROUND(AVG(equity_loss), 4) AS average_equity_loss,
                     MAX(equity_loss) AS max_equity_loss
                 FROM move_reviews
+                WHERE profile_id = ?
                 GROUP BY leak_category
                 ORDER BY average_equity_loss DESC, move_count DESC
                 """
+            ,
+                (profile_id,),
             ).fetchall()
 
             return [
@@ -214,7 +234,12 @@ class TrainingStore:
                 for row in rows
             ]
 
-    def drill_candidates(self, limit: int = 10, leak_category: str | None = None) -> list[dict[str, object]]:
+    def drill_candidates(
+        self,
+        limit: int = 10,
+        leak_category: str | None = None,
+        profile_id: str = "default",
+    ) -> list[dict[str, object]]:
         safe_limit = max(1, min(limit, 50))
         with self._connect() as conn:
             if leak_category:
@@ -228,11 +253,11 @@ class TrainingStore:
                         best_notation,
                         position_json
                     FROM move_reviews
-                    WHERE leak_category = ?
+                    WHERE profile_id = ? AND leak_category = ?
                     ORDER BY equity_loss DESC, created_at DESC
                     LIMIT ?
                     """,
-                    (leak_category, safe_limit),
+                    (profile_id, leak_category, safe_limit),
                 ).fetchall()
             else:
                 rows = conn.execute(
@@ -245,10 +270,11 @@ class TrainingStore:
                         best_notation,
                         position_json
                     FROM move_reviews
+                    WHERE profile_id = ?
                     ORDER BY equity_loss DESC, created_at DESC
                     LIMIT ?
                     """,
-                    (safe_limit,),
+                    (profile_id, safe_limit),
                 ).fetchall()
 
         drills: list[dict[str, object]] = []
@@ -265,14 +291,21 @@ class TrainingStore:
             )
         return drills
 
-    def record_drill_attempt(self, review_id: int, chosen_notation: str) -> dict[str, object]:
+    def record_drill_attempt(
+        self,
+        review_id: int,
+        chosen_notation: str,
+        profile_id: str = "default",
+    ) -> dict[str, object]:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT best_notation FROM move_reviews WHERE id = ?",
+                "SELECT best_notation, profile_id FROM move_reviews WHERE id = ?",
                 (review_id,),
             ).fetchone()
             if row is None:
                 raise ValueError(f"review {review_id} not found")
+            if str(row["profile_id"]) != profile_id:
+                raise ValueError(f"review {review_id} not found for profile {profile_id}")
 
             expected_notation = str(row["best_notation"])
             correct = int(chosen_notation.strip() == expected_notation)
@@ -282,13 +315,14 @@ class TrainingStore:
                 """
                 INSERT INTO drill_attempts (
                     created_at,
+                    profile_id,
                     review_id,
                     chosen_notation,
                     expected_notation,
                     correct
-                ) VALUES (?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (now, review_id, chosen_notation.strip(), expected_notation, correct),
+                (now, profile_id, review_id, chosen_notation.strip(), expected_notation, correct),
             )
             conn.commit()
             attempt_id = int(cursor.lastrowid)
@@ -300,7 +334,7 @@ class TrainingStore:
             "expected_notation": expected_notation,
         }
 
-    def drill_summary(self) -> dict[str, object]:
+    def drill_summary(self, profile_id: str = "default") -> dict[str, object]:
         with self._connect() as conn:
             row = conn.execute(
                 """
@@ -308,7 +342,10 @@ class TrainingStore:
                     COUNT(*) AS total_attempts,
                     COALESCE(SUM(correct), 0) AS correct_attempts
                 FROM drill_attempts
+                WHERE profile_id = ?
                 """
+            ,
+                (profile_id,),
             ).fetchone()
 
         total = int(row["total_attempts"] or 0)

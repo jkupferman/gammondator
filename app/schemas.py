@@ -107,6 +107,7 @@ class ChooseAIMoveFromPositionRequest(BaseModel):
 class RatePlayedMoveRequest(BaseModel):
     position: Position
     played_move: Move
+    profile_id: str = "default"
 
 
 class RatePlayedMoveRecordedResponse(BaseModel):
@@ -164,6 +165,7 @@ class TrainingDrillsResponse(BaseModel):
 class TrainingDrillAttemptRequest(BaseModel):
     review_id: int
     chosen_notation: str
+    profile_id: str = "default"
 
 
 class TrainingDrillAttemptResponse(BaseModel):
@@ -181,13 +183,19 @@ class TrainingDrillSummaryResponse(BaseModel):
 
 class SessionCreateRequest(BaseModel):
     initial_position: Position
+    profile_id: str = "default"
 
 
 class SessionStateResponse(BaseModel):
     session_id: int
+    profile_id: str
     status: str
     move_count: int
     current_position: Position
+
+
+class SessionListResponse(BaseModel):
+    sessions: list[SessionStateResponse]
 
 
 class SessionPlayTurnRequest(BaseModel):

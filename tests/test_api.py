@@ -69,6 +69,7 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert create_response.status_code == 200
     created = create_response.json()
     session_id = created["session_id"]
+    assert created["profile_id"] == "default"
     assert created["move_count"] == 0
     assert created["current_position"]["turn"] == "white"
 
@@ -76,6 +77,7 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert get_response.status_code == 200
     state = get_response.json()
     assert state["session_id"] == session_id
+    assert state["profile_id"] == "default"
     assert state["move_count"] == 0
 
     play_response = client.post(
@@ -163,6 +165,17 @@ def test_session_roll_endpoint() -> None:
     assert 1 <= data["dice"][0] <= 6
     assert 1 <= data["dice"][1] <= 6
     assert data["position"]["dice"] == data["dice"]
+
+
+def test_list_sessions_by_profile() -> None:
+    client.post("/sessions", json={"initial_position": SAMPLE_PAYLOAD["position"], "profile_id": "alpha"})
+    client.post("/sessions", json={"initial_position": SAMPLE_PAYLOAD["position"], "profile_id": "beta"})
+    alpha = client.get("/sessions?profile_id=alpha")
+    beta = client.get("/sessions?profile_id=beta")
+    assert alpha.status_code == 200
+    assert beta.status_code == 200
+    assert all(s["profile_id"] == "alpha" for s in alpha.json()["sessions"])
+    assert all(s["profile_id"] == "beta" for s in beta.json()["sessions"])
 
 
 def test_analyze_move_returns_ranked_feedback() -> None:
@@ -331,6 +344,10 @@ def test_rate_played_move_and_record_and_training_views() -> None:
     summary = summary_response.json()
     assert summary["total_moves"] >= 1
     assert "average_equity_loss" in summary
+
+    other_profile_summary = client.get("/training/summary?profile_id=other")
+    assert other_profile_summary.status_code == 200
+    assert other_profile_summary.json()["total_moves"] == 0
 
     mistakes_response = client.get("/training/mistakes?limit=5")
     assert mistakes_response.status_code == 200

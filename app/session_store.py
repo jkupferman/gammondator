@@ -27,12 +27,18 @@ class SessionStore:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
+                    profile_id TEXT NOT NULL DEFAULT 'default',
                     status TEXT NOT NULL,
                     move_count INTEGER NOT NULL DEFAULT 0,
                     current_position_json TEXT NOT NULL
                 )
                 """
             )
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)")}
+            if "profile_id" not in columns:
+                conn.execute(
+                    "ALTER TABLE sessions ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'default'"
+                )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS session_turns (
@@ -50,31 +56,73 @@ class SessionStore:
             )
             conn.commit()
 
-    def create_session(self, initial_position: Position) -> dict[str, object]:
+    def create_session(self, initial_position: Position, profile_id: str = "default") -> dict[str, object]:
         now = datetime.now(tz=timezone.utc).isoformat()
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO sessions (created_at, updated_at, status, move_count, current_position_json)
-                VALUES (?, ?, 'active', 0, ?)
+                INSERT INTO sessions (
+                    created_at,
+                    updated_at,
+                    profile_id,
+                    status,
+                    move_count,
+                    current_position_json
+                )
+                VALUES (?, ?, ?, 'active', 0, ?)
                 """,
-                (now, now, json.dumps(initial_position.model_dump())),
+                (now, now, profile_id, json.dumps(initial_position.model_dump())),
             )
             conn.commit()
             session_id = int(cursor.lastrowid)
 
         return {
             "session_id": session_id,
+            "profile_id": profile_id,
             "status": "active",
             "move_count": 0,
             "current_position": initial_position,
         }
 
+    def list_sessions(self, profile_id: str = "default", status: str | None = None) -> list[dict[str, object]]:
+        with self._connect() as conn:
+            if status:
+                rows = conn.execute(
+                    """
+                    SELECT id, profile_id, status, move_count, current_position_json
+                    FROM sessions
+                    WHERE profile_id = ? AND status = ?
+                    ORDER BY updated_at DESC
+                    """,
+                    (profile_id, status),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT id, profile_id, status, move_count, current_position_json
+                    FROM sessions
+                    WHERE profile_id = ?
+                    ORDER BY updated_at DESC
+                    """,
+                    (profile_id,),
+                ).fetchall()
+
+        return [
+            {
+                "session_id": int(row["id"]),
+                "profile_id": str(row["profile_id"]),
+                "status": str(row["status"]),
+                "move_count": int(row["move_count"]),
+                "current_position": Position.model_validate_json(str(row["current_position_json"])),
+            }
+            for row in rows
+        ]
+
     def get_session(self, session_id: int) -> dict[str, object] | None:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, status, move_count, current_position_json
+                SELECT id, profile_id, status, move_count, current_position_json
                 FROM sessions
                 WHERE id = ?
                 """,
@@ -86,6 +134,7 @@ class SessionStore:
 
         return {
             "session_id": int(row["id"]),
+            "profile_id": str(row["profile_id"]),
             "status": str(row["status"]),
             "move_count": int(row["move_count"]),
             "current_position": Position.model_validate_json(str(row["current_position_json"])),

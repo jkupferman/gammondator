@@ -34,6 +34,7 @@ from app.schemas import (
     SessionReportResponse,
     SessionPlayTurnRequest,
     SessionPlayTurnResponse,
+    SessionListResponse,
     SessionStateResponse,
     TrainingMistakesResponse,
     TrainingLeaksResponse,
@@ -74,13 +75,20 @@ def analyzer_info() -> AnalyzerInfoResponse:
 
 @app.post("/sessions", response_model=SessionStateResponse)
 def create_session_endpoint(payload: SessionCreateRequest) -> SessionStateResponse:
-    created = session_store.create_session(payload.initial_position)
+    created = session_store.create_session(payload.initial_position, profile_id=payload.profile_id)
     return SessionStateResponse(
         session_id=int(created["session_id"]),
+        profile_id=str(created["profile_id"]),
         status=str(created["status"]),
         move_count=int(created["move_count"]),
         current_position=created["current_position"],
     )
+
+
+@app.get("/sessions", response_model=SessionListResponse)
+def list_sessions_endpoint(profile_id: str = "default", status: str | None = None) -> SessionListResponse:
+    sessions = session_store.list_sessions(profile_id=profile_id, status=status)
+    return SessionListResponse(sessions=[SessionStateResponse.model_validate(s) for s in sessions])
 
 
 @app.get("/sessions/{session_id}", response_model=SessionStateResponse)
@@ -91,6 +99,7 @@ def get_session_endpoint(session_id: int) -> SessionStateResponse:
 
     return SessionStateResponse(
         session_id=int(state["session_id"]),
+        profile_id=str(state["profile_id"]),
         status=str(state["status"]),
         move_count=int(state["move_count"]),
         current_position=state["current_position"],
@@ -234,7 +243,11 @@ def rate_played_move_and_record_endpoint(
 ) -> RatePlayedMoveRecordedResponse:
     try:
         analysis = _rate_played_move(payload)
-        review_id = training_store.record_review(payload.position, analysis)
+        review_id = training_store.record_review(
+            payload.position,
+            analysis,
+            profile_id=payload.profile_id,
+        )
         return RatePlayedMoveRecordedResponse(review_id=review_id, analysis=analysis)
     except BackendUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -243,8 +256,8 @@ def rate_played_move_and_record_endpoint(
 
 
 @app.get("/training/summary", response_model=TrainingSummaryResponse)
-def training_summary_endpoint() -> TrainingSummaryResponse:
-    summary = training_store.summary()
+def training_summary_endpoint(profile_id: str = "default") -> TrainingSummaryResponse:
+    summary = training_store.summary(profile_id=profile_id)
     return TrainingSummaryResponse(
         total_moves=summary.total_moves,
         average_equity_loss=summary.average_equity_loss,
@@ -256,18 +269,26 @@ def training_summary_endpoint() -> TrainingSummaryResponse:
 
 
 @app.get("/training/mistakes", response_model=TrainingMistakesResponse)
-def training_mistakes_endpoint(limit: int = 20) -> TrainingMistakesResponse:
-    return TrainingMistakesResponse(mistakes=training_store.top_mistakes(limit=limit))
+def training_mistakes_endpoint(limit: int = 20, profile_id: str = "default") -> TrainingMistakesResponse:
+    return TrainingMistakesResponse(mistakes=training_store.top_mistakes(limit=limit, profile_id=profile_id))
 
 
 @app.get("/training/leaks", response_model=TrainingLeaksResponse)
-def training_leaks_endpoint() -> TrainingLeaksResponse:
-    return TrainingLeaksResponse(leaks=training_store.leak_summary())
+def training_leaks_endpoint(profile_id: str = "default") -> TrainingLeaksResponse:
+    return TrainingLeaksResponse(leaks=training_store.leak_summary(profile_id=profile_id))
 
 
 @app.get("/training/drills", response_model=TrainingDrillsResponse)
-def training_drills_endpoint(limit: int = 10, leak_category: str | None = None) -> TrainingDrillsResponse:
-    drills = training_store.drill_candidates(limit=limit, leak_category=leak_category)
+def training_drills_endpoint(
+    limit: int = 10,
+    leak_category: str | None = None,
+    profile_id: str = "default",
+) -> TrainingDrillsResponse:
+    drills = training_store.drill_candidates(
+        limit=limit,
+        leak_category=leak_category,
+        profile_id=profile_id,
+    )
     return TrainingDrillsResponse(drills=drills)
 
 
@@ -279,6 +300,7 @@ def training_drill_attempt_endpoint(
         result = training_store.record_drill_attempt(
             review_id=payload.review_id,
             chosen_notation=payload.chosen_notation,
+            profile_id=payload.profile_id,
         )
         return TrainingDrillAttemptResponse.model_validate(result)
     except ValueError as exc:
@@ -286,8 +308,8 @@ def training_drill_attempt_endpoint(
 
 
 @app.get("/training/drills/summary", response_model=TrainingDrillSummaryResponse)
-def training_drill_summary_endpoint() -> TrainingDrillSummaryResponse:
-    return TrainingDrillSummaryResponse.model_validate(training_store.drill_summary())
+def training_drill_summary_endpoint(profile_id: str = "default") -> TrainingDrillSummaryResponse:
+    return TrainingDrillSummaryResponse.model_validate(training_store.drill_summary(profile_id=profile_id))
 
 
 @app.post("/cube/decision", response_model=CubeDecisionResponse)
@@ -330,7 +352,11 @@ def play_session_turn_endpoint(
             RatePlayedMoveRequest(position=current_position, played_move=payload.played_move)
         )
         if payload.record_training:
-            training_store.record_review(current_position, analysis)
+            training_store.record_review(
+                current_position,
+                analysis,
+                profile_id=str(state["profile_id"]),
+            )
 
         next_position = apply_move_to_position(
             position=current_position,

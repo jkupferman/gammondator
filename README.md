@@ -111,7 +111,7 @@ Create a session with an initial position:
 ```bash
 curl -X POST 'http://127.0.0.1:8000/sessions' \
   -H 'Content-Type: application/json' \
-  -d '{ "initial_position": { ...position payload... } }'
+  -d '{ "initial_position": { ...position payload... }, "profile_id": "default" }'
 ```
 
 Play a turn in that session (rate move, advance board, set next dice):
@@ -183,11 +183,11 @@ curl -X POST 'http://127.0.0.1:8000/rate-played-move-and-record' \
 Read training stats:
 
 ```bash
-curl 'http://127.0.0.1:8000/training/summary'
-curl 'http://127.0.0.1:8000/training/mistakes?limit=20'
-curl 'http://127.0.0.1:8000/training/leaks'
-curl 'http://127.0.0.1:8000/training/drills?limit=10'
-curl 'http://127.0.0.1:8000/training/drills/summary'
+curl 'http://127.0.0.1:8000/training/summary?profile_id=default'
+curl 'http://127.0.0.1:8000/training/mistakes?limit=20&profile_id=default'
+curl 'http://127.0.0.1:8000/training/leaks?profile_id=default'
+curl 'http://127.0.0.1:8000/training/drills?limit=10&profile_id=default'
+curl 'http://127.0.0.1:8000/training/drills/summary?profile_id=default'
 ```
 
 Submit a drill answer:
@@ -195,7 +195,7 @@ Submit a drill answer:
 ```bash
 curl -X POST 'http://127.0.0.1:8000/training/drills/attempt' \
   -H 'Content-Type: application/json' \
-  -d '{ "review_id": 1, "chosen_notation": "13/7 8/7" }'
+  -d '{ "review_id": 1, "chosen_notation": "13/7 8/7", "profile_id": "default" }'
 ```
 
 Cube decision training:
@@ -214,6 +214,7 @@ Run the API and open the root URL:
 
 The web UI supports:
 - session creation
+- profile selection (`profile_id`)
 - legal move loading
 - click-based move builder + submit
 - AI turn button
@@ -299,4 +300,5 @@ export GAMMONDATOR_DB_PATH='/absolute/path/to/gammondator.db'
 
 - Endpoints that accept user-provided moves now enforce strict legality for the supplied `position + dice`.
 - Session turn endpoints auto-roll next dice when `next_dice` is omitted.
+- Training and session history are profile-scoped via `profile_id` (default is `default`).
 - GNUbg backend can automatically fall back to heuristic backend per request when enabled.

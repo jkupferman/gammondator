@@ -10,6 +10,7 @@ const state = {
 const el = {
   die1: document.getElementById("die1"),
   die2: document.getElementById("die2"),
+  profileId: document.getElementById("profileId"),
   newSessionBtn: document.getElementById("newSessionBtn"),
   loadLegalBtn: document.getElementById("loadLegalBtn"),
   aiTurnBtn: document.getElementById("aiTurnBtn"),
@@ -56,6 +57,11 @@ async function api(path, options = {}) {
 
 function currentDice() {
   return [Number(el.die1.value), Number(el.die2.value)];
+}
+
+function currentProfileId() {
+  const value = (el.profileId.value || "").trim();
+  return value || "default";
 }
 
 function pointLabel(point) {
@@ -127,9 +133,9 @@ function refreshButtons() {
 async function loadTrainingSummary() {
   try {
     const [summary, leaks, drillSummary] = await Promise.all([
-      api("/training/summary"),
-      api("/training/leaks"),
-      api("/training/drills/summary"),
+      api(`/training/summary?profile_id=${encodeURIComponent(currentProfileId())}`),
+      api(`/training/leaks?profile_id=${encodeURIComponent(currentProfileId())}`),
+      api(`/training/drills/summary?profile_id=${encodeURIComponent(currentProfileId())}`),
     ]);
     el.trainingSummary.textContent = `${JSON.stringify(summary, null, 2)}\n\nLeaks:\n${JSON.stringify(leaks, null, 2)}\n\nDrills:\n${JSON.stringify(drillSummary, null, 2)}`;
   } catch (err) {
@@ -163,7 +169,7 @@ async function newSession() {
     };
     const created = await api("/sessions", {
       method: "POST",
-      body: JSON.stringify({ initial_position: position }),
+      body: JSON.stringify({ initial_position: position, profile_id: currentProfileId() }),
     });
     state.sessionId = created.session_id;
     state.position = created.current_position;
@@ -341,7 +347,9 @@ function renderDrillStatus() {
 
 async function loadDrill() {
   try {
-    const data = await api("/training/drills?limit=1");
+    const data = await api(
+      `/training/drills?limit=1&profile_id=${encodeURIComponent(currentProfileId())}`,
+    );
     if (!data.drills.length) {
       notify("No drills available yet. Record some rated moves first.", true);
       state.currentDrill = null;
@@ -376,6 +384,7 @@ async function submitDrillAttempt() {
       body: JSON.stringify({
         review_id: state.currentDrill.review_id,
         chosen_notation: chosen,
+        profile_id: currentProfileId(),
       }),
     });
     notify(JSON.stringify(result, null, 2));
