@@ -368,6 +368,14 @@ button:disabled {
   font-weight: 700;
 }
 
+.feedback-step-shared {
+  color: #565656;
+}
+
+.feedback-step-normal {
+  color: inherit;
+}
+
 @media (max-width: 900px) {
   .board-stage {
     grid-template-columns: 1fr;

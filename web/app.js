@@ -81,6 +81,32 @@ function countSharedSteps(playedNotation, bestNotation) {
   return { shared, total: played.length };
 }
 
+function renderPlayedNotationWithSharedSteps(playedNotation, bestNotation) {
+  const played = parseNotationSteps(playedNotation);
+  if (!played.length) {
+    return escapeHtml(playedNotation || "");
+  }
+  const best = parseNotationSteps(bestNotation);
+  const bestCounts = new Map();
+  for (const step of best) {
+    bestCounts.set(step, (bestCounts.get(step) || 0) + 1);
+  }
+  let shared = 0;
+  const parts = played.map((step) => {
+    const remaining = bestCounts.get(step) || 0;
+    if (remaining > 0) {
+      shared += 1;
+      bestCounts.set(step, remaining - 1);
+      return `<span class="feedback-step-shared">${escapeHtml(step)}</span>`;
+    }
+    return `<span class="feedback-step-normal">${escapeHtml(step)}</span>`;
+  });
+  if (shared === 0 || shared === played.length) {
+    return escapeHtml(playedNotation || "");
+  }
+  return parts.join(" ");
+}
+
 function setTransientStatus(message, isError = false, durationMs = 1800) {
   if (state.transientStatusTimer !== null) {
     clearTimeout(state.transientStatusTimer);
@@ -253,18 +279,12 @@ function renderAnalysisFeedback(analysis, aiSummary = "") {
       : ` (${summary.winDelta >= 0 ? "+" : ""}${summary.winDelta.toFixed(1)}%)`;
   const deltaClass =
     summary.winDelta === null ? "delta-flat" : summary.winDelta >= 0 ? "delta-up" : "delta-down";
-  const sharedLine =
-    summary.sharedSteps.total > 0 && summary.sharedSteps.shared < summary.sharedSteps.total
-      ? `Shared steps with best line: ${summary.sharedSteps.shared}/${summary.sharedSteps.total}`
-      : null;
+  const playedWithShared = renderPlayedNotationWithSharedSteps(summary.playedNotation, summary.bestLine);
   const lines = [
     `<span class="feedback-quality ${qualityClass}">${escapeHtml(summary.qualityTitle)}</span>`,
-    `You played: ${escapeHtml(summary.playedNotation)}`,
+    `You played: ${playedWithShared}`,
     `Best line: ${escapeHtml(summary.bestLine)}`,
   ];
-  if (sharedLine) {
-    lines.push(escapeHtml(sharedLine));
-  }
   lines.push(escapeHtml(summary.equityLossLine));
   lines.push(
     `Win Pct: ${summary.winPctValue.toFixed(1)}%` +
