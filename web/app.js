@@ -271,7 +271,7 @@ function formatMoveAnalysisSummary(analysis) {
     winDelta === null
       ? `Win %: ${currentWinPct.toFixed(1)}%`
       : `Win %: ${currentWinPct.toFixed(1)}% (${winDelta >= 0 ? "+" : ""}${winDelta.toFixed(1)}%)`;
-  const nextStepLine = isOptimal ? null : `Next step: ${nextStep}`;
+  const nextStepLine = isOptimal ? null : `Takeaway: ${nextStep}`;
   state.lastHumanWinPct = currentWinPct;
   return {
     quality: played.quality,
@@ -289,34 +289,34 @@ function formatMoveAnalysisSummary(analysis) {
 
 function buildNextStepAdvice({ isOptimal, playedNotation, bestNotation, firstReason, equityLoss }) {
   if (isOptimal) {
-    return "Keep this pattern: prioritize safety, tempo, and clean structure.";
+    return "You matched the engine's top plan in this position.";
   }
   const reason = (firstReason || "").toLowerCase();
   if (reason.includes("race")) {
-    return "Before submitting, check which option saves the most pips without creating new risks.";
+    return "Engine preference: maximize pip efficiency while keeping risk controlled.";
   }
   if (reason.includes("blot")) {
-    return "Before submitting, scan for unnecessary blots and prefer safer checker distribution.";
+    return "Engine preference: safer checker distribution and lower tactical exposure.";
   }
   if (reason.includes("anchor")) {
-    return "Before submitting, compare options that improve or preserve useful anchors.";
+    return "Engine preference: preserve or improve anchor quality.";
   }
   if (reason.includes("hit")) {
-    return "Before submitting, compare hit-and-cover sequences versus pure racing plays.";
+    return "Engine preference: stronger contact sequence than the played line.";
   }
   if (reason.includes("bar")) {
-    return "Before submitting, prioritize smooth bar entry and avoid immediate re-shots.";
+    return "Engine preference: cleaner bar-entry structure with fewer follow-up liabilities.";
   }
   if (reason.includes("bear")) {
-    return "Before submitting, compare bear-off efficiency and avoid leaving shots behind.";
+    return "Engine preference: more efficient bear-off pattern.";
   }
   if (equityLoss < 0.05) {
-    return "Close decision. Pause and compare safety versus pip gain before committing.";
+    return "Close decision: the engine found a slightly more efficient line.";
   }
   if (playedNotation !== bestNotation) {
-    return "Big-picture check: compare safety, pip count, and structure before locking your move.";
+    return "Engine preference: a different line with better overall equity.";
   }
-  return "Keep reviewing candidate lines before you commit.";
+  return "Engine preference: a line with better balance between safety and efficiency.";
 }
 
 function estimateWinPctFromEquity(equity) {
