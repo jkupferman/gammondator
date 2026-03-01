@@ -71,6 +71,10 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button.valid-target-btn {
+  box-shadow: 0 0 0 3px rgba(15,109,101,0.45);
+}
+
 .board-head {
   display: flex;
   justify-content: space-between;
@@ -148,6 +152,10 @@ button:disabled {
 
 .board-point.selected::before {
   filter: drop-shadow(0 0 6px rgba(15,109,101,0.8));
+}
+
+.board-point.valid-target::before {
+  filter: drop-shadow(0 0 8px rgba(15,109,101,0.85));
 }
 
 .point-number {

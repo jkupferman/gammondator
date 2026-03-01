@@ -71,6 +71,61 @@ function currentProfileId() {
   return value || "default";
 }
 
+function getValidTargetsForSelection() {
+  if (state.selectedFrom === null || state.legalMoves.length === 0) {
+    return new Set();
+  }
+
+  const targets = new Set();
+  for (const move of state.legalMoves) {
+    if (!Array.isArray(move.steps) || move.steps.length === 0) continue;
+    if (state.moveSteps.length >= move.steps.length) continue;
+
+    let prefixMatches = true;
+    for (let i = 0; i < state.moveSteps.length; i += 1) {
+      const expected = move.steps[i];
+      const actual = state.moveSteps[i];
+      if (!expected || expected.from_point !== actual.from_point || expected.to_point !== actual.to_point) {
+        prefixMatches = false;
+        break;
+      }
+    }
+    if (!prefixMatches) continue;
+
+    const nextStep = move.steps[state.moveSteps.length];
+    if (nextStep && nextStep.from_point === state.selectedFrom) {
+      targets.add(nextStep.to_point);
+    }
+  }
+  return targets;
+}
+
+async function refreshLegalMoves(silent = true) {
+  if (!state.position) {
+    state.legalMoves = [];
+    renderLegalMoves();
+    renderBoard();
+    return;
+  }
+
+  try {
+    const data = await api("/legal-moves", {
+      method: "POST",
+      body: JSON.stringify({ position: state.position }),
+    });
+    state.legalMoves = data.moves;
+    renderLegalMoves();
+    renderBoard();
+    if (!silent) {
+      notify(`Loaded ${data.moves.length} legal moves.`);
+    }
+  } catch (err) {
+    if (!silent) {
+      notify(err.message, true);
+    }
+  }
+}
+
 function renderBoard() {
   if (!state.position) {
     el.boardGrid.innerHTML = "";
@@ -85,6 +140,7 @@ function renderBoard() {
   const topRight = [19, 20, 21, 22, 23, 24];
   const bottomLeft = [12, 11, 10, 9, 8, 7];
   const bottomRight = [6, 5, 4, 3, 2, 1];
+  const validTargets = getValidTargetsForSelection();
 
   function buildPoint(point, orientation, stripeDark) {
     const idx = point - 1;
@@ -92,7 +148,9 @@ function renderBoard() {
     const side = value > 0 ? "white" : value < 0 ? "black" : "empty";
     const count = Math.abs(value);
     const pointEl = document.createElement("button");
-    pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${state.selectedFrom === point ? " selected" : ""}`;
+    const isSelected = state.selectedFrom === point;
+    const isValidTarget = validTargets.has(point);
+    pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${isSelected ? " selected" : ""}${isValidTarget ? " valid-target" : ""}`;
     pointEl.addEventListener("click", () => onPointClick(point));
 
     const num = document.createElement("span");
@@ -190,6 +248,9 @@ function renderOffCheckers(side, count) {
 }
 
 function renderMoveBuilder() {
+  const validTargets = getValidTargetsForSelection();
+  const offPoint = state.position ? (state.position.turn === "white" ? 0 : 25) : null;
+
   if (state.moveSteps.length === 0) {
     el.currentMove.textContent = "No move selected";
   } else {
@@ -200,6 +261,7 @@ function renderMoveBuilder() {
   el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0;
   el.fromBarBtn.disabled = !state.position;
   el.toOffBtn.disabled = !state.position || state.selectedFrom === null;
+  el.toOffBtn.classList.toggle("valid-target-btn", offPoint !== null && validTargets.has(offPoint));
 }
 
 function renderLegalMoves() {
@@ -259,6 +321,11 @@ function onPointClick(point) {
   if (state.selectedFrom === null) {
     state.selectedFrom = point;
   } else {
+    const validTargets = getValidTargetsForSelection();
+    if (validTargets.size > 0 && !validTargets.has(point)) {
+      notify("That destination is not legal for the selected checker.", true);
+      return;
+    }
     state.moveSteps.push({ from_point: state.selectedFrom, to_point: point });
     state.selectedFrom = null;
   }
@@ -291,8 +358,8 @@ async function newSession() {
     refreshButtons();
     renderBoard();
     renderMoveBuilder();
-    renderLegalMoves();
     notify("Session created.");
+    await refreshLegalMoves(true);
     await loadTrainingSummary();
     await loadAnalysisJobs();
   } catch (err) {
@@ -301,17 +368,7 @@ async function newSession() {
 }
 
 async function loadLegalMoves() {
-  try {
-    const data = await api("/legal-moves", {
-      method: "POST",
-      body: JSON.stringify({ position: state.position }),
-    });
-    state.legalMoves = data.moves;
-    renderLegalMoves();
-    notify(`Loaded ${data.moves.length} legal moves.`);
-  } catch (err) {
-    notify(err.message, true);
-  }
+  await refreshLegalMoves(false);
 }
 
 async function submitMove() {
@@ -328,11 +385,9 @@ async function submitMove() {
     state.position = played.current_position;
     state.moveSteps = [];
     state.selectedFrom = null;
-    state.legalMoves = [];
-    renderBoard();
     renderMoveBuilder();
-    renderLegalMoves();
     notify(JSON.stringify(played.analysis, null, 2));
+    await refreshLegalMoves(true);
     await loadTrainingSummary();
     await loadAnalysisJobs();
   } catch (err) {
@@ -348,9 +403,10 @@ async function aiTurn() {
       body: JSON.stringify({ apply_move: true }),
     });
     state.position = played.current_position;
-    state.legalMoves = [];
-    renderBoard();
-    renderLegalMoves();
+    state.moveSteps = [];
+    state.selectedFrom = null;
+    renderMoveBuilder();
+    await refreshLegalMoves(true);
     notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
   } catch (err) {
     notify(err.message, true);
@@ -362,9 +418,12 @@ async function rollDice() {
   try {
     const rolled = await api(`/sessions/${state.sessionId}/roll`, { method: "POST" });
     state.position = rolled.position;
+    state.moveSteps = [];
+    state.selectedFrom = null;
+    renderMoveBuilder();
     el.die1.value = String(rolled.dice[0]);
     el.die2.value = String(rolled.dice[1]);
-    renderBoard();
+    await refreshLegalMoves(true);
     notify(`Rolled ${rolled.dice[0]}-${rolled.dice[1]}.`);
   } catch (err) {
     notify(err.message, true);
@@ -377,11 +436,13 @@ async function closeSession() {
     const closed = await api(`/sessions/${state.sessionId}/close`, { method: "POST" });
     notify(`Session #${closed.session_id} closed.`);
     state.sessionId = null;
+    state.position = null;
     state.legalMoves = [];
     state.moveSteps = [];
     state.selectedFrom = null;
     el.sessionStatus.textContent = "No session";
     refreshButtons();
+    renderBoard();
     renderMoveBuilder();
     renderLegalMoves();
     el.cubeFeedback.textContent = "No cube decision checked yet.";
@@ -472,12 +533,10 @@ async function loadDrill() {
     }
     state.currentDrill = data.drills[0];
     state.position = state.currentDrill.position;
-    state.legalMoves = [];
     state.moveSteps = [];
     state.selectedFrom = null;
-    renderBoard();
     renderMoveBuilder();
-    renderLegalMoves();
+    await refreshLegalMoves(true);
     renderDrillStatus();
     notify("Drill loaded. Enter your best move notation and submit.");
   } catch (err) {
