@@ -488,7 +488,41 @@ function chooseDestination(point, showErrors = true) {
   clearDragState();
   renderMoveBuilder();
   renderBoard();
+  if (shouldAutoSubmitBuiltMove()) {
+    submitMove();
+  }
   return true;
+}
+
+function shouldAutoSubmitBuiltMove() {
+  if (!state.sessionId || !state.position || state.animating || state.moveSteps.length === 0) {
+    return false;
+  }
+  if (!state.legalMoves.length) {
+    return false;
+  }
+
+  let exactMatch = false;
+  let hasContinuation = false;
+  for (const move of state.legalMoves) {
+    if (!Array.isArray(move.steps)) continue;
+    let prefixMatches = true;
+    for (let i = 0; i < state.moveSteps.length; i += 1) {
+      const expected = move.steps[i];
+      const actual = state.moveSteps[i];
+      if (!expected || expected.from_point !== actual.from_point || expected.to_point !== actual.to_point) {
+        prefixMatches = false;
+        break;
+      }
+    }
+    if (!prefixMatches) continue;
+    if (move.steps.length === state.moveSteps.length) {
+      exactMatch = true;
+    } else if (move.steps.length > state.moveSteps.length) {
+      hasContinuation = true;
+    }
+  }
+  return exactMatch && !hasContinuation;
 }
 
 function onCheckerDragStart(event) {
