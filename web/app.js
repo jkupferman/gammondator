@@ -8,6 +8,7 @@ const state = {
   touchDragging: false,
   lastMoveHighlight: null,
   highlightTimerId: null,
+  moveLog: [],
   currentDrill: null,
 };
 
@@ -36,6 +37,7 @@ const el = {
   submitMoveBtn: document.getElementById("submitMoveBtn"),
   legalMoves: document.getElementById("legalMoves"),
   feedback: document.getElementById("feedback"),
+  moveLog: document.getElementById("moveLog"),
   trainingSummary: document.getElementById("trainingSummary"),
   cubeAction: document.getElementById("cubeAction"),
   cubeCheckBtn: document.getElementById("cubeCheckBtn"),
@@ -588,6 +590,19 @@ function renderLegalMoves() {
   }
 }
 
+function renderMoveLog() {
+  if (!state.moveLog.length) {
+    el.moveLog.textContent = "No moves yet.";
+    return;
+  }
+  const lines = state.moveLog.map((entry, index) => {
+    const note = entry.note ? ` (${entry.note})` : "";
+    const dice = entry.dice ? ` [${entry.dice}]` : "";
+    return `${index + 1}. ${entry.actor}: ${entry.notation}${dice}${note}`;
+  });
+  el.moveLog.textContent = lines.join("\n");
+}
+
 function refreshButtons() {
   const active = Boolean(state.sessionId);
   el.loadLegalBtn.disabled = !active;
@@ -654,11 +669,13 @@ async function newSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.legalMoves = [];
+    state.moveLog = [];
     clearMoveHighlight(false);
     el.sessionStatus.textContent = `Session #${state.sessionId} (${created.status})`;
     refreshButtons();
     renderBoard();
     renderMoveBuilder();
+    renderMoveLog();
     notify("Session created.");
     await refreshLegalMoves(true);
     await loadTrainingSummary();
@@ -675,6 +692,7 @@ async function loadLegalMoves() {
 async function submitMove() {
   if (!state.sessionId || state.moveSteps.length === 0) return;
   try {
+    const diceLabel = state.position ? `${state.position.dice[0]}-${state.position.dice[1]}` : "";
     const playedSteps = state.moveSteps.map((s) => ({ from_point: s.from_point, to_point: s.to_point }));
     const notation = playedSteps.map((s) => `${s.from_point}/${s.to_point}`).join(" ");
     const played = await api(`/sessions/${state.sessionId}/play-turn`, {
@@ -687,7 +705,14 @@ async function submitMove() {
     state.position = played.current_position;
     state.moveSteps = [];
     state.selectedFrom = null;
+    state.moveLog.push({
+      actor: "You",
+      notation,
+      dice: diceLabel,
+      note: played.analysis?.quality || "",
+    });
     renderMoveBuilder();
+    renderMoveLog();
     setMoveHighlightFromSteps(playedSteps);
     notify(JSON.stringify(played.analysis, null, 2));
     await refreshLegalMoves(true);
@@ -708,7 +733,14 @@ async function aiTurn() {
     state.position = played.current_position;
     state.moveSteps = [];
     state.selectedFrom = null;
+    state.moveLog.push({
+      actor: "AI",
+      notation: played.selected_move.notation,
+      dice: played.selected_move?.dice ? `${played.selected_move.dice[0]}-${played.selected_move.dice[1]}` : "",
+      note: "",
+    });
     renderMoveBuilder();
+    renderMoveLog();
     setMoveHighlightFromSteps(played.selected_move?.steps || []);
     await refreshLegalMoves(true);
     notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
@@ -745,11 +777,13 @@ async function closeSession() {
     state.legalMoves = [];
     state.moveSteps = [];
     state.selectedFrom = null;
+    state.moveLog = [];
     clearMoveHighlight(false);
     el.sessionStatus.textContent = "No session";
     refreshButtons();
     renderBoard();
     renderMoveBuilder();
+    renderMoveLog();
     renderLegalMoves();
     el.cubeFeedback.textContent = "No cube decision checked yet.";
     await loadAnalysisJobs();
@@ -849,8 +883,10 @@ async function loadDrill() {
     state.position = state.currentDrill.position;
     state.moveSteps = [];
     state.selectedFrom = null;
+    state.moveLog = [];
     clearMoveHighlight(false);
     renderMoveBuilder();
+    renderMoveLog();
     await refreshLegalMoves(true);
     renderDrillStatus();
     notify("Drill loaded. Enter your best move notation and submit.");
@@ -994,6 +1030,7 @@ window.addEventListener("keydown", (event) => {
 refreshButtons();
 renderBoard();
 renderMoveBuilder();
+renderMoveLog();
 renderDrillStatus();
 loadTrainingSummary();
 loadAnalysisJobs();
