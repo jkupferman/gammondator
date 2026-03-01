@@ -25,6 +25,8 @@ Server runs at `http://127.0.0.1:8000`.
 - `GET /analyzer`
 - `POST /analyze-move`
 - `POST /choose-ai-move`
+- `POST /legal-moves`
+- `POST /choose-ai-move-from-position`
 
 ## Example Request
 
@@ -73,6 +75,24 @@ curl -X POST 'http://127.0.0.1:8000/analyze-move' \
       }
     ]
   }'
+```
+
+## Server-Side Legal Move Generation
+
+Request all legal plays for the current turn:
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/legal-moves' \
+  -H 'Content-Type: application/json' \
+  -d '{ "position": { ...same position payload... } }'
+```
+
+Choose an AI move directly from `position + dice` (no client candidate list needed):
+
+```bash
+curl -X POST 'http://127.0.0.1:8000/choose-ai-move-from-position' \
+  -H 'Content-Type: application/json' \
+  -d '{ "position": { ...same position payload... } }'
 ```
 
 ## Testing

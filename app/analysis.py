@@ -150,12 +150,17 @@ def _apply_move(position: Position, move: Move) -> PositionState:
         to_point = step.to_point
 
         if side == "white":
-            if from_point < 1 or from_point > 24:
-                raise ValueError(f"invalid from_point for white: {from_point}")
-            if state.points[from_point - 1] <= 0:
-                raise ValueError(f"white checker not present at point {from_point}")
+            if from_point == 25:
+                if state.bar_white <= 0:
+                    raise ValueError("white checker not present on bar")
+                state.bar_white -= 1
+            else:
+                if from_point < 1 or from_point > 24:
+                    raise ValueError(f"invalid from_point for white: {from_point}")
+                if state.points[from_point - 1] <= 0:
+                    raise ValueError(f"white checker not present at point {from_point}")
 
-            state.points[from_point - 1] -= 1
+                state.points[from_point - 1] -= 1
 
             if to_point == 0:
                 state.off_white += 1
@@ -173,12 +178,17 @@ def _apply_move(position: Position, move: Move) -> PositionState:
                 state.points[to_point - 1] += 1
 
         else:
-            if from_point < 1 or from_point > 24:
-                raise ValueError(f"invalid from_point for black: {from_point}")
-            if state.points[from_point - 1] >= 0:
-                raise ValueError(f"black checker not present at point {from_point}")
+            if from_point == 0:
+                if state.bar_black <= 0:
+                    raise ValueError("black checker not present on bar")
+                state.bar_black -= 1
+            else:
+                if from_point < 1 or from_point > 24:
+                    raise ValueError(f"invalid from_point for black: {from_point}")
+                if state.points[from_point - 1] >= 0:
+                    raise ValueError(f"black checker not present at point {from_point}")
 
-            state.points[from_point - 1] += 1
+                state.points[from_point - 1] += 1
 
             if to_point == 25:
                 state.off_black += 1

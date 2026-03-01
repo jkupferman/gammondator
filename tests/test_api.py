@@ -87,3 +87,43 @@ def test_choose_ai_move() -> None:
     assert "selected_move" in data
     assert len(data["top_moves"]) == 3
     assert data["selected_move"]["delta_vs_best"] == 0
+
+
+def test_legal_moves_endpoint_returns_moves() -> None:
+    response = client.post("/legal-moves", json={"position": SAMPLE_PAYLOAD["position"]})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["moves"]) > 0
+    assert "notation" in data["moves"][0]
+
+
+def test_choose_ai_move_from_position() -> None:
+    response = client.post(
+        "/choose-ai-move-from-position",
+        json={"position": SAMPLE_PAYLOAD["position"]},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "selected_move" in data
+    assert len(data["top_moves"]) > 0
+
+
+def test_choose_ai_move_from_position_when_no_legal_moves() -> None:
+    points = [0] * 24
+    points[22] = -2
+    points[23] = -2
+    payload = {
+        "position": {
+            "points": points,
+            "bar_white": 1,
+            "bar_black": 0,
+            "off_white": 14,
+            "off_black": 11,
+            "turn": "white",
+            "cube_value": 1,
+            "dice": [1, 2],
+        }
+    }
+    response = client.post("/choose-ai-move-from-position", json=payload)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "no legal moves available"

@@ -90,3 +90,15 @@ class AnalyzerInfoResponse(BaseModel):
     backend: str
     fallback_active: bool
     details: str
+
+
+class LegalMovesRequest(BaseModel):
+    position: Position
+
+
+class LegalMovesResponse(BaseModel):
+    moves: list[Move]
+
+
+class ChooseAIMoveFromPositionRequest(BaseModel):
+    position: Position

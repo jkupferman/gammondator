@@ -31,10 +31,13 @@ Gammondator solves this by running in a live game loop:
   - `GET /analyzer`
   - `POST /analyze-move`
   - `POST /choose-ai-move`
+  - `POST /legal-moves`
+  - `POST /choose-ai-move-from-position`
 - Strict input/output schemas for position and move analysis.
 - Heuristic baseline analyzer with move quality classification.
 - Explanation layer based on structural/racing features.
 - Backend abstraction with configurable analyzer backend.
+- Server-side legal move generation from position + dice (including bar entry and bearing off rules).
 - GNU Backgammon bridge contract support with fallback to heuristic backend.
 - Local bridge stub script for integration testing.
 - Automated tests for API + backend behavior.
@@ -113,11 +116,11 @@ Gammondator solves this by running in a live game loop:
 - Favor deterministic behavior in MVP paths.
 
 ## Immediate Next Steps
-1. Implement/legalize full move generation from board state and dice.
-2. Build the first real GNUbg bridge process (replace stub behavior).
-3. Add a lightweight game session model and persistence.
-4. Scaffold a minimal web UI to play against AI and call analysis endpoints.
-5. Add post-game report endpoint summarizing mistakes by severity/category.
+1. Build the first real GNUbg bridge process (replace stub behavior).
+2. Add a lightweight game session model and persistence.
+3. Scaffold a minimal web UI to play against AI and call analysis endpoints.
+4. Add post-game report endpoint summarizing mistakes by severity/category.
+5. Add cube-decision analysis path for match play.
 
 ## Project Conventions
 - Branch naming: `codex/*`.
