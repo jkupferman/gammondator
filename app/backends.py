@@ -63,14 +63,21 @@ class GnuBGBridgeBackend(AnalyzerBackend):
         self._validate_binary()
         parts = self._command_parts()
 
-        proc = subprocess.run(
-            parts,
-            input=request.model_dump_json(),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=self.timeout_seconds,
-        )
+        try:
+            proc = subprocess.run(
+                parts,
+                input=request.model_dump_json(),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=self.timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise BackendUnavailableError(
+                f"GNUbg bridge timed out after {self.timeout_seconds:.1f}s"
+            ) from exc
+        except OSError as exc:
+            raise BackendUnavailableError(f"GNUbg bridge invocation failed: {exc}") from exc
 
         if proc.returncode != 0:
             stderr = proc.stderr.strip() or "unknown bridge error"

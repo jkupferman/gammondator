@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 
 import pytest
@@ -133,6 +134,30 @@ def test_runtime_fallback_on_primary_backend_error() -> None:
 
     response = runtime.analyze_move(_sample_request())
     assert response.best_move.delta_vs_best == 0
+
+
+def test_gnubg_bridge_timeout_is_mapped_to_backend_unavailable(monkeypatch) -> None:
+    backend = GnuBGBridgeBackend(f"{sys.executable} scripts/gnubg_bridge_stub.py", timeout_seconds=0.1)
+
+    def fake_run(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise subprocess.TimeoutExpired(cmd=kwargs.get("args", "bridge"), timeout=0.1)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(BackendUnavailableError, match="timed out"):
+        backend.analyze_move(_sample_request())
+
+
+def test_gnubg_bridge_oserror_is_mapped_to_backend_unavailable(monkeypatch) -> None:
+    backend = GnuBGBridgeBackend(f"{sys.executable} scripts/gnubg_bridge_stub.py")
+
+    def fake_run(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise OSError("spawn failed")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(BackendUnavailableError, match="invocation failed"):
+        backend.analyze_move(_sample_request())
 
 
 @pytest.mark.skipif(
