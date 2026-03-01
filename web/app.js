@@ -60,6 +60,28 @@ function parseNotationSteps(notation) {
     .filter((token) => token.includes("/"));
 }
 
+function stepEndpointRank(value) {
+  const token = String(value || "").toLowerCase();
+  if (token === "bar") return -1;
+  if (token === "off") return 99;
+  const num = Number(token);
+  if (Number.isFinite(num)) return num;
+  return 50;
+}
+
+function canonicalizeNotation(notation) {
+  const steps = parseNotationSteps(notation);
+  if (!steps.length) return String(notation || "");
+  const sorted = [...steps].sort((a, b) => {
+    const [af = "", at = ""] = a.split("/");
+    const [bf = "", bt = ""] = b.split("/");
+    const fromDiff = stepEndpointRank(af) - stepEndpointRank(bf);
+    if (fromDiff !== 0) return fromDiff;
+    return stepEndpointRank(at) - stepEndpointRank(bt);
+  });
+  return sorted.join(" ");
+}
+
 function countSharedSteps(playedNotation, bestNotation) {
   const played = parseNotationSteps(playedNotation);
   const best = parseNotationSteps(bestNotation);
@@ -181,9 +203,12 @@ function formatMoveAnalysisSummary(analysis) {
   }[played.quality] || "Move reviewed.";
   const loss = Number(played.delta_vs_best || 0);
   const isOptimal = loss <= 0.001;
+  const playedDisplay = isOptimal ? canonicalizeNotation(played.notation) : played.notation;
+  const bestDisplay = isOptimal ? canonicalizeNotation(best.notation) : best.notation;
+  const headline = isOptimal ? "Optimal move." : qualityTitle;
   const currentWinPct = estimateWinPctFromEquity(played.equity);
   const winDelta = state.lastHumanWinPct === null ? null : currentWinPct - state.lastHumanWinPct;
-  const sharedSteps = countSharedSteps(played.notation, best.notation);
+  const sharedSteps = countSharedSteps(playedDisplay, bestDisplay);
   const lossHint =
     isOptimal
       ? "You found an optimal move."
@@ -197,29 +222,22 @@ function formatMoveAnalysisSummary(analysis) {
   const firstReason = reasons[0] || "No notes available.";
   const nextStep = buildNextStepAdvice({
     isOptimal,
-    playedNotation: played.notation,
-    bestNotation: best.notation,
+    playedNotation: playedDisplay,
+    bestNotation: bestDisplay,
     firstReason,
     equityLoss: loss,
   });
-  const bestLine =
-    isOptimal && played.notation !== best.notation
-      ? `${best.notation} (equivalent line)`
-      : best.notation;
-  const equivalentButDifferentNotation = isOptimal && played.notation !== best.notation;
   const winPctLine =
     winDelta === null
       ? `Win %: ${currentWinPct.toFixed(1)}%`
       : `Win %: ${currentWinPct.toFixed(1)}% (${winDelta >= 0 ? "+" : ""}${winDelta.toFixed(1)}%)`;
-  const nextStepLine = equivalentButDifferentNotation
-    ? "Next step: Same strength as best move; notation order is just different."
-    : `Next step: ${nextStep}`;
+  const nextStepLine = isOptimal ? null : `Next step: ${nextStep}`;
   state.lastHumanWinPct = currentWinPct;
   return {
     quality: played.quality,
-    qualityTitle,
-    playedNotation: played.notation,
-    bestLine,
+    qualityTitle: headline,
+    playedNotation: playedDisplay,
+    bestLine: bestDisplay,
     equityLossLine: `Equity loss: ${loss.toFixed(3)}. ${lossHint}`,
     winPctValue: currentWinPct,
     winDelta,
@@ -291,7 +309,9 @@ function renderAnalysisFeedback(analysis, aiSummary = "") {
       (deltaText ? ` <span class="feedback-win-delta ${deltaClass}">${escapeHtml(deltaText)}</span>` : ""),
   );
   lines.push(escapeHtml(summary.whyLine));
-  lines.push(escapeHtml(summary.nextStepLine));
+  if (summary.nextStepLine) {
+    lines.push(escapeHtml(summary.nextStepLine));
+  }
   if (aiSummary) {
     lines.push("");
     lines.push(escapeHtml(aiSummary));
