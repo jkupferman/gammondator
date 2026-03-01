@@ -18,8 +18,7 @@ const el = {
   turnStatus: document.getElementById("turnStatus"),
   diceStatus: document.getElementById("diceStatus"),
   boardGrid: document.getElementById("boardGrid"),
-  whiteOffRail: document.getElementById("whiteOffRail"),
-  blackOffRail: document.getElementById("blackOffRail"),
+  offColumn: document.getElementById("offColumn"),
   moveStatus: document.getElementById("moveStatus"),
   feedback: document.getElementById("feedback"),
 };
@@ -443,8 +442,7 @@ function maybeAutoSubmitBuiltMove() {
 function renderBoard() {
   if (!state.position) {
     el.boardGrid.innerHTML = "";
-    el.whiteOffRail.innerHTML = "";
-    el.blackOffRail.innerHTML = "";
+    el.offColumn.innerHTML = "";
     return;
   }
 
@@ -550,16 +548,14 @@ function renderBoard() {
     !state.submittingMove &&
     !state.animating;
 
-  el.whiteOffRail.innerHTML = `
-    <button class="off-rail" disabled>
-      <div class="off-title">White Off (${boardPosition.off_white})</div>
-      <div class="off-stack">${renderOffCheckers("white", boardPosition.off_white)}</div>
-    </button>
-  `;
-  el.blackOffRail.innerHTML = `
+  el.offColumn.innerHTML = `
     <button class="off-rail" id="blackOffBtn" ${canBearOffBlack ? "" : "disabled"}>
       <div class="off-title">Black Off (${boardPosition.off_black})</div>
       <div class="off-stack">${renderOffCheckers("black", boardPosition.off_black)}</div>
+    </button>
+    <button class="off-rail" disabled>
+      <div class="off-title">White Off (${boardPosition.off_white})</div>
+      <div class="off-stack">${renderOffCheckers("white", boardPosition.off_white)}</div>
     </button>
   `;
 

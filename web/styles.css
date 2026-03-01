@@ -79,7 +79,7 @@ button:disabled {
 
 .board-stage {
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr) 74px;
+  grid-template-columns: minmax(0, 1fr) 88px;
   gap: 10px;
   align-items: start;
 }
@@ -255,13 +255,16 @@ button:disabled {
   min-height: 30px;
 }
 
-.off-rail-wrap {
+.off-column {
   min-height: 456px;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
 }
 
 .off-rail {
   width: 100%;
-  min-height: 456px;
+  min-height: 0;
   border: 2px solid rgba(0,0,0,0.2);
   border-radius: 8px;
   padding: 8px;
@@ -313,23 +316,9 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .off-rail-wrap {
-    min-height: auto;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .off-rail {
-    min-height: 110px;
-  }
-
-  .off-stack {
-    min-height: 46px;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
+  .off-column { min-height: auto; grid-template-columns: 1fr 1fr; grid-template-rows: none; }
+  .off-rail { min-height: 110px; }
+  .off-stack { min-height: 46px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
 
   .status-bar {
     flex-direction: column;
