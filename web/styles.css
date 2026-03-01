@@ -190,6 +190,15 @@ button.valid-target-btn {
   box-shadow: inset 0 2px 3px rgba(255,255,255,0.35);
 }
 
+.checker.draggable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.checker.dragging {
+  opacity: 0.65;
+}
+
 .checker.white {
   background: radial-gradient(circle at 35% 30%, #fff, #ddd8cf);
 }

@@ -4,6 +4,8 @@ const state = {
   legalMoves: [],
   moveSteps: [],
   selectedFrom: null,
+  dragFrom: null,
+  touchDragging: false,
   currentDrill: null,
 };
 
@@ -71,12 +73,11 @@ function currentProfileId() {
   return value || "default";
 }
 
-function getValidTargetsForSelection() {
-  if (state.selectedFrom === null || state.legalMoves.length === 0) {
-    return new Set();
+function getPrefixMatchingMoves() {
+  if (state.legalMoves.length === 0) {
+    return [];
   }
-
-  const targets = new Set();
+  const matches = [];
   for (const move of state.legalMoves) {
     if (!Array.isArray(move.steps) || move.steps.length === 0) continue;
     if (state.moveSteps.length >= move.steps.length) continue;
@@ -91,13 +92,187 @@ function getValidTargetsForSelection() {
       }
     }
     if (!prefixMatches) continue;
+    matches.push(move);
+  }
+  return matches;
+}
 
+function getValidSourcesForPrefix() {
+  const sources = new Set();
+  for (const move of getPrefixMatchingMoves()) {
+    const nextStep = move.steps[state.moveSteps.length];
+    if (nextStep) {
+      sources.add(nextStep.from_point);
+    }
+  }
+  return sources;
+}
+
+function getValidTargetsForSelection() {
+  if (state.selectedFrom === null || state.legalMoves.length === 0) {
+    return new Set();
+  }
+  const targets = new Set();
+  for (const move of getPrefixMatchingMoves()) {
     const nextStep = move.steps[state.moveSteps.length];
     if (nextStep && nextStep.from_point === state.selectedFrom) {
       targets.add(nextStep.to_point);
     }
   }
   return targets;
+}
+
+function canChooseSource(point) {
+  if (!state.position) {
+    return false;
+  }
+  const turn = state.position.turn;
+  if (point >= 1 && point <= 24) {
+    const value = state.position.points[point - 1] || 0;
+    if (turn === "white" && value <= 0) return false;
+    if (turn === "black" && value >= 0) return false;
+  } else if (point === 25) {
+    if (turn !== "white" || state.position.bar_white <= 0) return false;
+  } else if (point === 0) {
+    if (turn !== "black" || state.position.bar_black <= 0) return false;
+  } else {
+    return false;
+  }
+
+  const validSources = getValidSourcesForPrefix();
+  if (validSources.size > 0) {
+    return validSources.has(point);
+  }
+  return true;
+}
+
+function clearDragState() {
+  state.dragFrom = null;
+  state.touchDragging = false;
+}
+
+function chooseSource(point, showErrors = true) {
+  if (!state.position) return false;
+  if (!canChooseSource(point)) {
+    if (showErrors) {
+      notify("That checker is not legal for this step.", true);
+    }
+    return false;
+  }
+  state.selectedFrom = point;
+  renderMoveBuilder();
+  renderBoard();
+  return true;
+}
+
+function chooseDestination(point, showErrors = true) {
+  if (!state.position || state.selectedFrom === null) return false;
+  const validTargets = getValidTargetsForSelection();
+  if (validTargets.size > 0 && !validTargets.has(point)) {
+    if (showErrors) {
+      notify("That destination is not legal for the selected checker.", true);
+    }
+    return false;
+  }
+  state.moveSteps.push({ from_point: state.selectedFrom, to_point: point });
+  state.selectedFrom = null;
+  clearDragState();
+  renderMoveBuilder();
+  renderBoard();
+  return true;
+}
+
+function onCheckerDragStart(event) {
+  const fromPoint = Number(event.currentTarget.dataset.fromPoint);
+  if (!chooseSource(fromPoint, false)) {
+    event.preventDefault();
+    notify("That checker is not legal for this step.", true);
+    return;
+  }
+  state.dragFrom = fromPoint;
+  event.currentTarget.classList.add("dragging");
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(fromPoint));
+  }
+}
+
+function onCheckerDragEnd(event) {
+  event.currentTarget.classList.remove("dragging");
+  clearDragState();
+  renderBoard();
+}
+
+function onCheckerTouchStart(event) {
+  const fromPoint = Number(event.currentTarget.dataset.fromPoint);
+  if (!chooseSource(fromPoint, false)) {
+    notify("That checker is not legal for this step.", true);
+    return;
+  }
+  state.dragFrom = fromPoint;
+  state.touchDragging = true;
+}
+
+function canDropOn(targetPoint) {
+  if (state.selectedFrom === null && state.dragFrom !== null) {
+    state.selectedFrom = state.dragFrom;
+  }
+  if (state.selectedFrom === null) return false;
+  const validTargets = getValidTargetsForSelection();
+  if (validTargets.size === 0) return true;
+  return validTargets.has(targetPoint);
+}
+
+function onPointDragOver(event) {
+  const targetPoint = Number(event.currentTarget.dataset.point);
+  if (!Number.isNaN(targetPoint) && canDropOn(targetPoint)) {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+  }
+}
+
+function onPointDrop(event) {
+  event.preventDefault();
+  const targetPoint = Number(event.currentTarget.dataset.point);
+  if (Number.isNaN(targetPoint)) return;
+  if (state.selectedFrom === null && state.dragFrom !== null) {
+    state.selectedFrom = state.dragFrom;
+  }
+  chooseDestination(targetPoint, true);
+}
+
+function onPointTouchEnd(event) {
+  if (!state.touchDragging) return;
+  event.preventDefault();
+  const targetPoint = Number(event.currentTarget.dataset.point);
+  if (Number.isNaN(targetPoint)) return;
+  if (state.selectedFrom === null && state.dragFrom !== null) {
+    state.selectedFrom = state.dragFrom;
+  }
+  chooseDestination(targetPoint, true);
+}
+
+function onOffDrop(event) {
+  event.preventDefault();
+  if (!state.position) return;
+  const offPoint = state.position.turn === "white" ? 0 : 25;
+  if (state.selectedFrom === null && state.dragFrom !== null) {
+    state.selectedFrom = state.dragFrom;
+  }
+  chooseDestination(offPoint, true);
+}
+
+function onOffDragOver(event) {
+  if (!state.position) return;
+  const offPoint = state.position.turn === "white" ? 0 : 25;
+  if (canDropOn(offPoint)) {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+  }
 }
 
 async function refreshLegalMoves(silent = true) {
@@ -151,7 +326,11 @@ function renderBoard() {
     const isSelected = state.selectedFrom === point;
     const isValidTarget = validTargets.has(point);
     pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${isSelected ? " selected" : ""}${isValidTarget ? " valid-target" : ""}`;
+    pointEl.dataset.point = String(point);
     pointEl.addEventListener("click", () => onPointClick(point));
+    pointEl.addEventListener("dragover", onPointDragOver);
+    pointEl.addEventListener("drop", onPointDrop);
+    pointEl.addEventListener("touchend", onPointTouchEnd, { passive: false });
 
     const num = document.createElement("span");
     num.className = "point-number";
@@ -162,9 +341,18 @@ function renderBoard() {
     stack.className = "checker-stack";
     if (side !== "empty") {
       const visible = Math.min(count, 5);
+      const canDragFromPoint = canChooseSource(point);
       for (let i = 0; i < visible; i += 1) {
         const checker = document.createElement("span");
         checker.className = `checker ${side}`;
+        checker.dataset.fromPoint = String(point);
+        checker.draggable = canDragFromPoint;
+        if (canDragFromPoint) {
+          checker.classList.add("draggable");
+          checker.addEventListener("dragstart", onCheckerDragStart);
+          checker.addEventListener("dragend", onCheckerDragEnd);
+          checker.addEventListener("touchstart", onCheckerTouchStart, { passive: true });
+        }
         stack.appendChild(checker);
       }
       if (count > 5) {
@@ -319,18 +507,10 @@ async function loadAnalysisJobs() {
 function onPointClick(point) {
   if (!state.position) return;
   if (state.selectedFrom === null) {
-    state.selectedFrom = point;
+    chooseSource(point);
   } else {
-    const validTargets = getValidTargetsForSelection();
-    if (validTargets.size > 0 && !validTargets.has(point)) {
-      notify("That destination is not legal for the selected checker.", true);
-      return;
-    }
-    state.moveSteps.push({ from_point: state.selectedFrom, to_point: point });
-    state.selectedFrom = null;
+    chooseDestination(point);
   }
-  renderMoveBuilder();
-  renderBoard();
 }
 
 async function newSession() {
@@ -470,23 +650,19 @@ async function checkCubeDecision() {
 
 function chooseFromBar() {
   if (!state.position) return;
-  state.selectedFrom = state.position.turn === "white" ? 25 : 0;
-  renderBoard();
-  renderMoveBuilder();
+  chooseSource(state.position.turn === "white" ? 25 : 0);
 }
 
 function chooseToOff() {
   if (!state.position || state.selectedFrom === null) return;
   const to = state.position.turn === "white" ? 0 : 25;
-  state.moveSteps.push({ from_point: state.selectedFrom, to_point: to });
-  state.selectedFrom = null;
-  renderMoveBuilder();
-  renderBoard();
+  chooseDestination(to);
 }
 
 function clearMove() {
   state.moveSteps = [];
   state.selectedFrom = null;
+  clearDragState();
   renderMoveBuilder();
   renderBoard();
 }
@@ -644,6 +820,13 @@ el.queueAnalysisBtn.addEventListener("click", queueCurrentPositionAnalysis);
 el.runNextAnalysisBtn.addEventListener("click", runNextAnalysisJob);
 el.retryLatestJobBtn.addEventListener("click", retryLatestJob);
 el.cleanupJobsBtn.addEventListener("click", cleanupFinishedJobs);
+el.toOffBtn.addEventListener("dragover", onOffDragOver);
+el.toOffBtn.addEventListener("drop", onOffDrop);
+el.toOffBtn.addEventListener("touchend", (event) => {
+  if (!state.touchDragging) return;
+  event.preventDefault();
+  onOffDrop(event);
+}, { passive: false });
 
 refreshButtons();
 renderBoard();
