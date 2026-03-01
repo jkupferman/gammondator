@@ -116,7 +116,7 @@ button:disabled {
   padding: 6px 2px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
 }
 
@@ -126,6 +126,10 @@ button:disabled {
 
 .board-point.down {
   justify-content: flex-start;
+}
+
+.board-point.up {
+  justify-content: flex-end;
 }
 
 .board-point::before {
@@ -201,12 +205,14 @@ button:disabled {
   justify-content: flex-start;
   padding-top: 24px;
   padding-bottom: 6px;
+  margin-bottom: auto;
 }
 
 .board-row.bottom .board-point .checker-stack {
   justify-content: flex-end;
   padding-bottom: 24px;
   padding-top: 6px;
+  margin-top: auto;
 }
 
 .checker {
