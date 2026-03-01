@@ -183,6 +183,7 @@ Load ordered turn history for a session:
 ```bash
 curl 'http://127.0.0.1:8000/sessions/1/turns?limit=200'
 curl 'http://127.0.0.1:8000/sessions/1/turns?limit=200&actor=human'
+curl 'http://127.0.0.1:8000/sessions/1/turns/123/replay'
 curl 'http://127.0.0.1:8000/sessions/1/turns/markdown?limit=200&actor=ai'
 ```
 

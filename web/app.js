@@ -1569,6 +1569,11 @@ window.addEventListener("keydown", (event) => {
     replayLastMove();
     return;
   }
+  if ((event.key === "p" || event.key === "P") && !el.replayTurnBtn.disabled) {
+    event.preventDefault();
+    replaySelectedTurn();
+    return;
+  }
   if ((event.key === "t" || event.key === "T") && !el.turnTimelineBtn.disabled) {
     event.preventDefault();
     loadTurnTimeline();
