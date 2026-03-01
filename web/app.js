@@ -6,11 +6,16 @@ const state = {
   selectedFrom: null,
   dragFrom: null,
   touchDragging: false,
+  animating: false,
+  animationSeq: 0,
+  activeStepHighlight: null,
   lastMoveHighlight: null,
   highlightTimerId: null,
   moveLog: [],
   currentDrill: null,
 };
+
+const MOVE_ANIMATION_STEP_MS = 320;
 
 const el = {
   die1: document.getElementById("die1"),
@@ -94,6 +99,128 @@ function currentDice() {
 function currentProfileId() {
   const value = (el.profileId.value || "").trim();
   return value || "default";
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function clonePosition(position) {
+  return {
+    points: [...position.points],
+    bar_white: position.bar_white,
+    bar_black: position.bar_black,
+    off_white: position.off_white,
+    off_black: position.off_black,
+    turn: position.turn,
+    cube_value: position.cube_value,
+    dice: [position.dice[0], position.dice[1]],
+  };
+}
+
+function clearStepHighlight() {
+  state.activeStepHighlight = null;
+}
+
+function resetAnimationState() {
+  state.animationSeq += 1;
+  state.animating = false;
+  clearStepHighlight();
+}
+
+function applyAnimatedStep(position, step, side) {
+  const next = clonePosition(position);
+  const from = Number(step.from_point);
+  const to = Number(step.to_point);
+  const hit = { point: null, side: null };
+
+  if (side === "white") {
+    if (from >= 1 && from <= 24) {
+      next.points[from - 1] -= 1;
+    } else if (from === 25) {
+      next.bar_white -= 1;
+    }
+  } else if (side === "black") {
+    if (from >= 1 && from <= 24) {
+      next.points[from - 1] += 1;
+    } else if (from === 0) {
+      next.bar_black -= 1;
+    }
+  }
+
+  if (to === 0 && side === "white") {
+    next.off_white += 1;
+  } else if (to === 25 && side === "black") {
+    next.off_black += 1;
+  } else if (to >= 1 && to <= 24) {
+    const idx = to - 1;
+    if (side === "white") {
+      if (next.points[idx] === -1) {
+        next.points[idx] = 0;
+        next.bar_black += 1;
+        hit.point = to;
+        hit.side = "black";
+      }
+      next.points[idx] += 1;
+    } else {
+      if (next.points[idx] === 1) {
+        next.points[idx] = 0;
+        next.bar_white += 1;
+        hit.point = to;
+        hit.side = "white";
+      }
+      next.points[idx] -= 1;
+    }
+  }
+
+  return { position: next, hit };
+}
+
+async function animateMoveReplay(startPosition, steps, finalPosition) {
+  if (!Array.isArray(steps) || steps.length === 0) {
+    state.position = finalPosition;
+    renderBoard();
+    return;
+  }
+
+  const seq = state.animationSeq + 1;
+  state.animationSeq = seq;
+  state.animating = true;
+  clearStepHighlight();
+  clearMoveHighlight(false);
+  refreshButtons();
+  renderMoveBuilder();
+
+  let preview = clonePosition(startPosition);
+  const side = startPosition.turn;
+  state.position = preview;
+  renderBoard();
+
+  for (const step of steps) {
+    if (state.animationSeq !== seq) {
+      return;
+    }
+    const applied = applyAnimatedStep(preview, step, side);
+    preview = applied.position;
+    state.position = preview;
+    state.activeStepHighlight = {
+      from: Number(step.from_point),
+      to: Number(step.to_point),
+      hitPoint: applied.hit.point,
+      hitSide: applied.hit.side,
+    };
+    renderBoard();
+    await sleep(MOVE_ANIMATION_STEP_MS);
+  }
+
+  if (state.animationSeq !== seq) {
+    return;
+  }
+  clearStepHighlight();
+  state.position = finalPosition;
+  state.animating = false;
+  refreshButtons();
+  renderBoard();
 }
 
 function clearMoveHighlight(shouldRender = true) {
@@ -208,7 +335,7 @@ function getValidTargetsForSelection() {
 }
 
 function canChooseSource(point) {
-  if (!state.position) {
+  if (!state.position || state.animating) {
     return false;
   }
   const turn = state.position.turn;
@@ -251,7 +378,7 @@ function chooseSource(point, showErrors = true) {
 }
 
 function chooseDestination(point, showErrors = true) {
-  if (!state.position || state.selectedFrom === null) return false;
+  if (!state.position || state.selectedFrom === null || state.animating) return false;
   const validTargets = getValidTargetsForSelection();
   if (validTargets.size > 0 && !validTargets.has(point)) {
     if (showErrors) {
@@ -413,7 +540,10 @@ function renderBoard() {
     const isValidTarget = validTargets.has(point);
     const isMoveSource = Boolean(state.lastMoveHighlight?.sourcePoints?.has(point));
     const isMoveTarget = Boolean(state.lastMoveHighlight?.targetPoints?.has(point));
-    pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${isSelected ? " selected" : ""}${isValidTarget ? " valid-target" : ""}${isMoveSource ? " move-source" : ""}${isMoveTarget ? " move-target" : ""}`;
+    const isStepSource = state.activeStepHighlight?.from === point;
+    const isStepTarget = state.activeStepHighlight?.to === point;
+    const isHitPoint = state.activeStepHighlight?.hitPoint === point;
+    pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${isSelected ? " selected" : ""}${isValidTarget ? " valid-target" : ""}${isMoveSource || isStepSource ? " move-source" : ""}${isMoveTarget || isStepTarget ? " move-target" : ""}${isHitPoint ? " move-hit" : ""}`;
     pointEl.dataset.point = String(point);
     pointEl.addEventListener("click", () => onPointClick(point));
     pointEl.addEventListener("dragover", onPointDragOver);
@@ -471,7 +601,12 @@ function renderBoard() {
   topRow.appendChild(buildHalf(topLeft, "down"));
 
   const bar = document.createElement("div");
-  bar.className = `board-bar${state.selectedFrom === 25 || state.selectedFrom === 0 ? " selected" : ""}${state.lastMoveHighlight?.barActive ? " move-source" : ""}`;
+  const barSourceActive =
+    Boolean(state.lastMoveHighlight?.barActive) ||
+    state.activeStepHighlight?.from === 0 ||
+    state.activeStepHighlight?.from === 25;
+  const barHitActive = Boolean(state.activeStepHighlight?.hitSide);
+  bar.className = `board-bar${state.selectedFrom === 25 || state.selectedFrom === 0 ? " selected" : ""}${barSourceActive ? " move-source" : ""}${barHitActive ? " move-hit" : ""}`;
   const barLabel = document.createElement("div");
   barLabel.className = "bar-label";
   barLabel.textContent = "BAR";
@@ -548,11 +683,11 @@ function renderBoard() {
   const off = document.createElement("div");
   off.className = "off-trays-inner";
   off.innerHTML = `
-    <div class="off-tray${state.lastMoveHighlight?.offWhiteActive ? " move-target" : ""}">
+    <div class="off-tray${state.lastMoveHighlight?.offWhiteActive || state.activeStepHighlight?.to === 0 ? " move-target" : ""}">
       <div class="off-title">White Off</div>
       <div class="off-stack">${renderOffCheckers("white", state.position.off_white)}</div>
     </div>
-    <div class="off-tray${state.lastMoveHighlight?.offBlackActive ? " move-target" : ""}">
+    <div class="off-tray${state.lastMoveHighlight?.offBlackActive || state.activeStepHighlight?.to === 25 ? " move-target" : ""}">
       <div class="off-title">Black Off</div>
       <div class="off-stack">${renderOffCheckers("black", state.position.off_black)}</div>
     </div>
@@ -586,9 +721,11 @@ function renderMoveBuilder() {
   }
   el.clearMoveBtn.disabled = state.moveSteps.length === 0;
   el.undoStepBtn.disabled = state.moveSteps.length === 0;
-  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0;
-  el.fromBarBtn.disabled = !state.position;
-  el.toOffBtn.disabled = !state.position || state.selectedFrom === null;
+  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating;
+  el.fromBarBtn.disabled = !state.position || state.animating;
+  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating;
+  el.clearMoveBtn.disabled = el.clearMoveBtn.disabled || state.animating;
+  el.undoStepBtn.disabled = el.undoStepBtn.disabled || state.animating;
   el.toOffBtn.classList.toggle("valid-target-btn", offPoint !== null && validTargets.has(offPoint));
 }
 
@@ -638,15 +775,16 @@ function formatMoveAnalysisSummary(analysis) {
 
 function refreshButtons() {
   const active = Boolean(state.sessionId);
-  el.loadLegalBtn.disabled = !active;
-  el.aiTurnBtn.disabled = !active;
-  el.rollBtn.disabled = !active;
-  el.sessionReportBtn.disabled = !active;
-  el.closeSessionBtn.disabled = !active;
-  el.cubeCheckBtn.disabled = !active;
-  el.queueAnalysisBtn.disabled = !active;
+  const blocked = state.animating;
+  el.loadLegalBtn.disabled = !active || blocked;
+  el.aiTurnBtn.disabled = !active || blocked;
+  el.rollBtn.disabled = !active || blocked;
+  el.sessionReportBtn.disabled = !active || blocked;
+  el.closeSessionBtn.disabled = !active || blocked;
+  el.cubeCheckBtn.disabled = !active || blocked;
+  el.queueAnalysisBtn.disabled = !active || blocked;
   el.resumeSessionBtn.disabled = false;
-  el.refreshSessionsBtn.disabled = false;
+  el.refreshSessionsBtn.disabled = blocked;
 }
 
 async function loadTrainingSummary() {
@@ -722,6 +860,7 @@ async function resumeSelectedSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
+    resetAnimationState();
     clearMoveHighlight(false);
     el.sessionStatus.textContent = `Session #${state.sessionId} (${session.status})`;
     refreshButtons();
@@ -768,6 +907,7 @@ async function newSession() {
     state.selectedFrom = null;
     state.legalMoves = [];
     state.moveLog = [];
+    resetAnimationState();
     clearMoveHighlight(false);
     el.sessionStatus.textContent = `Session #${state.sessionId} (${created.status})`;
     refreshButtons();
@@ -789,8 +929,9 @@ async function loadLegalMoves() {
 }
 
 async function submitMove() {
-  if (!state.sessionId || state.moveSteps.length === 0) return;
+  if (!state.sessionId || state.moveSteps.length === 0 || !state.position) return;
   try {
+    const startingPosition = clonePosition(state.position);
     const diceLabel = state.position ? `${state.position.dice[0]}-${state.position.dice[1]}` : "";
     const playedSteps = state.moveSteps.map((s) => ({ from_point: s.from_point, to_point: s.to_point }));
     const notation = playedSteps.map((s) => `${s.from_point}/${s.to_point}`).join(" ");
@@ -801,7 +942,6 @@ async function submitMove() {
         record_training: true,
       }),
     });
-    state.position = played.current_position;
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog.push({
@@ -812,6 +952,7 @@ async function submitMove() {
     });
     renderMoveBuilder();
     renderMoveLog();
+    await animateMoveReplay(startingPosition, playedSteps, played.current_position);
     setMoveHighlightFromSteps(playedSteps);
     notify(formatMoveAnalysisSummary(played.analysis));
     await refreshLegalMoves(true);
@@ -826,13 +967,13 @@ async function submitMove() {
 }
 
 async function aiTurn(showNotify = true) {
-  if (!state.sessionId) return;
+  if (!state.sessionId || !state.position) return;
   try {
+    const startingPosition = clonePosition(state.position);
     const played = await api(`/sessions/${state.sessionId}/ai-turn`, {
       method: "POST",
       body: JSON.stringify({ apply_move: true }),
     });
-    state.position = played.current_position;
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog.push({
@@ -843,6 +984,7 @@ async function aiTurn(showNotify = true) {
     });
     renderMoveBuilder();
     renderMoveLog();
+    await animateMoveReplay(startingPosition, played.selected_move?.steps || [], played.current_position);
     setMoveHighlightFromSteps(played.selected_move?.steps || []);
     await refreshLegalMoves(true);
     if (showNotify) {
@@ -860,6 +1002,7 @@ async function rollDice() {
     state.position = rolled.position;
     state.moveSteps = [];
     state.selectedFrom = null;
+    resetAnimationState();
     clearMoveHighlight(false);
     renderMoveBuilder();
     el.die1.value = String(rolled.dice[0]);
@@ -882,6 +1025,7 @@ async function closeSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
+    resetAnimationState();
     clearMoveHighlight(false);
     el.sessionStatus.textContent = "No session";
     refreshButtons();
@@ -989,6 +1133,7 @@ async function loadDrill() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog = [];
+    resetAnimationState();
     clearMoveHighlight(false);
     renderMoveBuilder();
     renderMoveLog();

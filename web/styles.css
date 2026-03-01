@@ -166,6 +166,10 @@ button.valid-target-btn {
   filter: drop-shadow(0 0 8px rgba(15,109,101,0.95));
 }
 
+.board-point.move-hit::before {
+  filter: drop-shadow(0 0 10px rgba(185, 43, 39, 0.95));
+}
+
 .point-number {
   position: relative;
   z-index: 2;
@@ -244,6 +248,10 @@ button.valid-target-btn {
 
 .board-bar.move-source {
   outline: 3px solid rgba(31, 64, 122, 0.7);
+}
+
+.board-bar.move-hit {
+  box-shadow: 0 0 0 3px rgba(185, 43, 39, 0.55) inset;
 }
 
 .board-bar-spacer {
