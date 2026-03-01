@@ -16,7 +16,6 @@ const state = {
   sessionTurns: [],
   currentDrill: null,
 };
-const HUMAN_SIDE = "white";
 
 const el = {
   die1: document.getElementById("die1"),
@@ -428,9 +427,6 @@ function canChooseSource(point) {
   if (!state.position || state.animating) {
     return false;
   }
-  if (state.position.turn !== HUMAN_SIDE) {
-    return false;
-  }
   const turn = state.position.turn;
   if (point >= 1 && point <= 24) {
     const value = state.position.points[point - 1] || 0;
@@ -807,7 +803,6 @@ function renderOffCheckers(side, count) {
 function renderMoveBuilder() {
   const validTargets = getValidTargetsForSelection();
   const offPoint = state.position ? (state.position.turn === "white" ? 0 : 25) : null;
-  const humanTurn = Boolean(state.position && state.position.turn === HUMAN_SIDE);
 
   if (state.moveSteps.length === 0) {
     el.currentMove.textContent = "No move selected";
@@ -817,9 +812,9 @@ function renderMoveBuilder() {
   }
   el.clearMoveBtn.disabled = state.moveSteps.length === 0;
   el.undoStepBtn.disabled = state.moveSteps.length === 0;
-  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating || !humanTurn;
-  el.fromBarBtn.disabled = !state.position || state.animating || !humanTurn;
-  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating || !humanTurn;
+  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating;
+  el.fromBarBtn.disabled = !state.position || state.animating;
+  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating;
   el.clearMoveBtn.disabled = el.clearMoveBtn.disabled || state.animating;
   el.undoStepBtn.disabled = el.undoStepBtn.disabled || state.animating;
   el.replayMoveBtn.disabled = state.animating || !state.lastReplay;
@@ -982,8 +977,10 @@ async function loadSessionList() {
     const data = await api(`/sessions?profile_id=${profile}&status=active`);
     const sessions = data.sessions || [];
     renderSessionPicker(sessions);
+    return sessions;
   } catch (err) {
     notify(`Unable to load sessions: ${err.message}`, true);
+    return [];
   }
 }
 
@@ -1014,9 +1011,6 @@ async function resumeSelectedSession() {
     renderMoveBuilder();
     await loadSessionTurns(state.sessionId);
     await refreshLegalMoves(true);
-    if (state.position && state.position.turn !== HUMAN_SIDE) {
-      await aiTurn(false);
-    }
     await loadTrainingSummary();
     await loadAnalysisJobs();
     notify(`Resumed session #${state.sessionId}.`);
@@ -1070,12 +1064,7 @@ async function newSession() {
     el.die1.value = String(created.current_position.dice[0]);
     el.die2.value = String(created.current_position.dice[1]);
     await refreshLegalMoves(true);
-    if (opening.playerStarts) {
-      notify("Session created.");
-    } else {
-      await aiTurn(false);
-      notify("Session created.");
-    }
+    notify("Session created.");
     await loadTrainingSummary();
     await loadAnalysisJobs();
     await loadSessionList();
@@ -1123,9 +1112,6 @@ async function submitMove() {
     await loadSessionTurns(state.sessionId);
     await loadTrainingSummary();
     await loadAnalysisJobs();
-    if (state.sessionId && state.position && state.position.turn !== HUMAN_SIDE) {
-      await aiTurn(false);
-    }
   } catch (err) {
     notify(err.message, true);
   }
@@ -1133,7 +1119,6 @@ async function submitMove() {
 
 async function aiTurn(showNotify = true) {
   if (!state.sessionId || !state.position) return;
-  if (state.position.turn === HUMAN_SIDE) return;
   try {
     const startingPosition = clonePosition(state.position);
     const played = await api(`/sessions/${state.sessionId}/ai-turn`, {
@@ -1625,13 +1610,21 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-refreshButtons();
-loadPreferences();
-renderBoard();
-renderMoveBuilder();
-renderMoveLog();
-renderTurnReplayPicker();
-renderDrillStatus();
-loadTrainingSummary();
-loadAnalysisJobs();
-loadSessionList();
+async function initializeApp() {
+  refreshButtons();
+  loadPreferences();
+  renderBoard();
+  renderMoveBuilder();
+  renderMoveLog();
+  renderTurnReplayPicker();
+  renderDrillStatus();
+  await loadTrainingSummary();
+  await loadAnalysisJobs();
+  const sessions = await loadSessionList();
+  if (!state.sessionId && sessions.length) {
+    el.sessionPicker.value = String(sessions[0].session_id);
+    await resumeSelectedSession();
+  }
+}
+
+initializeApp();
