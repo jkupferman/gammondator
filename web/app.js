@@ -1071,10 +1071,10 @@ async function newSession() {
     el.die2.value = String(created.current_position.dice[1]);
     await refreshLegalMoves(true);
     if (opening.playerStarts) {
-      notify(`Opening roll You ${opening.playerDie} vs AI ${opening.aiDie}. You start.`);
+      notify("Session created.");
     } else {
       await aiTurn(false);
-      notify(`Opening roll You ${opening.playerDie} vs AI ${opening.aiDie}. AI started.`);
+      notify("Session created.");
     }
     await loadTrainingSummary();
     await loadAnalysisJobs();
