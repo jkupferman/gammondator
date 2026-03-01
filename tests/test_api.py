@@ -279,6 +279,12 @@ def test_session_turns_actor_filter() -> None:
     assert len(ai_payload) >= 1
     assert all(turn["actor"] == "ai" for turn in ai_payload)
 
+
+def test_session_turns_actor_filter_rejects_invalid_value() -> None:
+    response = client.get("/sessions/1/turns?actor=robot")
+    assert response.status_code == 400
+    assert "actor must be one of" in response.json()["detail"]
+
 def test_session_turns_handles_invalid_dice_json() -> None:
     create_response = client.post(
         "/sessions",

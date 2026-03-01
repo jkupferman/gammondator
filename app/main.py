@@ -372,7 +372,8 @@ def session_turns_endpoint(
     actor: str | None = None,
 ) -> SessionTurnListResponse:
     try:
-        turns = session_store.list_turns(session_id=session_id, limit=limit, actor=actor)
+        actor_filter = _normalize_turn_actor(actor)
+        turns = session_store.list_turns(session_id=session_id, limit=limit, actor=actor_filter)
         return SessionTurnListResponse(
             session_id=session_id,
             turns=[SessionTurnItemResponse.model_validate(turn) for turn in turns],
@@ -387,7 +388,11 @@ def session_turns_markdown_endpoint(
     limit: int = 200,
     actor: str | None = None,
 ) -> str:
-    turns_response = session_turns_endpoint(session_id=session_id, limit=limit, actor=actor)
+    turns_response = session_turns_endpoint(
+        session_id=session_id,
+        limit=limit,
+        actor=_normalize_turn_actor(actor),
+    )
     lines = [
         f"# Session {session_id} Turn Timeline",
         "",
@@ -865,3 +870,11 @@ def _validate_candidate_moves(position, candidate_moves) -> None:
                 status_code=400,
                 detail=f"candidate move is not legal for this position/dice: {move.notation}",
             )
+
+
+def _normalize_turn_actor(actor: str | None) -> str | None:
+    if actor is None or actor == "all":
+        return None
+    if actor in {"human", "ai"}:
+        return actor
+    raise HTTPException(status_code=400, detail="actor must be one of: all, human, ai")
