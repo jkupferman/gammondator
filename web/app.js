@@ -899,7 +899,7 @@ async function loadSessionTurns(sessionId) {
 async function loadSessionList() {
   try {
     const profile = encodeURIComponent(currentProfileId());
-    const data = await api(`/sessions?profile_id=${profile}`);
+    const data = await api(`/sessions?profile_id=${profile}&status=active`);
     const sessions = data.sessions || [];
     renderSessionPicker(sessions);
   } catch (err) {
