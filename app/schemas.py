@@ -275,6 +275,7 @@ class SessionTurnItemResponse(BaseModel):
     created_at: str
     turn: str
     actor: Literal["human", "ai"]
+    dice: tuple[int, int] | None = None
     played_notation: str
     quality: str
     equity_loss: float

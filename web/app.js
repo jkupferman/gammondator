@@ -904,7 +904,7 @@ async function loadSessionTurns(sessionId) {
     return {
       actor,
       notation: turn.played_notation,
-      dice: "",
+      dice: Array.isArray(turn.dice) && turn.dice.length === 2 ? `${turn.dice[0]}-${turn.dice[1]}` : "",
       note: noteParts.join(" "),
     };
   });

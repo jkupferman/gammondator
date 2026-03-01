@@ -47,6 +47,7 @@ class SessionStore:
                     created_at TEXT NOT NULL,
                     turn TEXT NOT NULL,
                     actor TEXT NOT NULL DEFAULT 'human',
+                    dice_json TEXT,
                     played_notation TEXT NOT NULL,
                     quality TEXT NOT NULL,
                     equity_loss REAL NOT NULL,
@@ -60,6 +61,8 @@ class SessionStore:
                 conn.execute(
                     "ALTER TABLE session_turns ADD COLUMN actor TEXT NOT NULL DEFAULT 'human'"
                 )
+            if "dice_json" not in turn_columns:
+                conn.execute("ALTER TABLE session_turns ADD COLUMN dice_json TEXT")
             conn.commit()
 
     def create_session(self, initial_position: Position, profile_id: str = "default") -> dict[str, object]:
@@ -184,17 +187,19 @@ class SessionStore:
                     created_at,
                     turn,
                     actor,
+                    dice_json,
                     played_notation,
                     quality,
                     equity_loss,
                     analysis_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
                     now,
                     previous_position.turn,
                     actor,
+                    json.dumps([int(previous_position.dice[0]), int(previous_position.dice[1])]),
                     analysis.played_move.notation,
                     analysis.played_move.quality,
                     float(analysis.played_move.delta_vs_best),
@@ -217,7 +222,7 @@ class SessionStore:
                 raise ValueError(f"session {session_id} not found")
             rows = conn.execute(
                 """
-                SELECT id, created_at, turn, actor, played_notation, quality, equity_loss, analysis_json
+                SELECT id, created_at, turn, actor, dice_json, played_notation, quality, equity_loss, analysis_json
                 FROM session_turns
                 WHERE session_id = ?
                 ORDER BY id ASC
@@ -231,12 +236,19 @@ class SessionStore:
             analysis_payload = json.loads(str(row["analysis_json"]))
             played_move = analysis_payload.get("played_move", {})
             best_move = analysis_payload.get("best_move", {})
+            raw_dice = row["dice_json"]
+            dice: tuple[int, int] | None = None
+            if raw_dice:
+                decoded = json.loads(str(raw_dice))
+                if isinstance(decoded, list) and len(decoded) == 2:
+                    dice = (int(decoded[0]), int(decoded[1]))
             turns.append(
                 {
                     "turn_id": int(row["id"]),
                     "created_at": str(row["created_at"]),
                     "turn": str(row["turn"]),
                     "actor": str(row["actor"]),
+                    "dice": dice,
                     "played_notation": str(row["played_notation"]),
                     "quality": str(row["quality"]),
                     "equity_loss": float(row["equity_loss"]),

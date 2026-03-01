@@ -396,6 +396,7 @@ def session_turns_markdown_endpoint(session_id: int, limit: int = 200) -> str:
                 f"- Timestamp: {turn.created_at}",
                 f"- Side: {turn.turn}",
                 f"- Actor: {turn.actor}",
+                f"- Dice: {turn.dice[0]}-{turn.dice[1]}" if turn.dice else "- Dice: unknown",
                 f"- Played: {turn.played_notation}",
                 f"- Best: {turn.best_notation}",
                 f"- Quality: {turn.quality}",

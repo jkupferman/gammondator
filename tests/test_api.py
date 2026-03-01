@@ -115,6 +115,7 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert turns_payload["session_id"] == session_id
     assert len(turns_payload["turns"]) >= 1
     assert turns_payload["turns"][0]["actor"] == "human"
+    assert turns_payload["turns"][0]["dice"] == [6, 1]
     assert "played_notation" in turns_payload["turns"][0]
 
     close_response = client.post(f"/sessions/{session_id}/close")
@@ -166,6 +167,7 @@ def test_session_ai_turn() -> None:
     turns = turns_response.json()["turns"]
     assert len(turns) >= 1
     assert turns[-1]["actor"] == "ai"
+    assert turns[-1]["dice"] == [6, 1]
 
 
 def test_session_ai_turn_preview_only() -> None:
@@ -236,6 +238,7 @@ def test_session_turns_markdown_endpoint() -> None:
     assert response.status_code == 200
     body = response.text
     assert f"# Session {session_id} Turn Timeline" in body
+    assert "- Dice: 6-1" in body
     assert "Played: 24/18 8/7" in body
 
 
