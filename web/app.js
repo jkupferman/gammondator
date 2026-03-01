@@ -1,113 +1,26 @@
+const HUMAN_SIDE = "black";
+
 const state = {
   sessionId: null,
   position: null,
   legalMoves: [],
   legalMovesLoaded: false,
-  legalMovesReqSeq: 0,
   moveSteps: [],
-  submittingMove: false,
   selectedFrom: null,
-  dragFrom: null,
-  touchDragging: false,
-  animating: false,
-  animationSeq: 0,
-  activeStepHighlight: null,
-  lastReplay: null,
-  lastMoveHighlight: null,
-  highlightTimerId: null,
-  moveLog: [],
-  sessionTurns: [],
-  currentDrill: null,
+  submittingMove: false,
 };
-const HUMAN_SIDE = "black";
 
 const el = {
-  die1: document.getElementById("die1"),
-  die2: document.getElementById("die2"),
-  animationMs: document.getElementById("animationMs"),
-  profileId: document.getElementById("profileId"),
-  newSessionBtn: document.getElementById("newSessionBtn"),
-  loadLegalBtn: document.getElementById("loadLegalBtn"),
-  aiTurnBtn: document.getElementById("aiTurnBtn"),
-  aiSuggestBtn: document.getElementById("aiSuggestBtn"),
-  rollBtn: document.getElementById("rollBtn"),
-  sessionReportBtn: document.getElementById("sessionReportBtn"),
-  turnTimelineBtn: document.getElementById("turnTimelineBtn"),
-  downloadTimelineBtn: document.getElementById("downloadTimelineBtn"),
-  timelineLimit: document.getElementById("timelineLimit"),
-  turnActorFilter: document.getElementById("turnActorFilter"),
-  closeSessionBtn: document.getElementById("closeSessionBtn"),
-  refreshSessionsBtn: document.getElementById("refreshSessionsBtn"),
-  sessionPicker: document.getElementById("sessionPicker"),
-  resumeSessionBtn: document.getElementById("resumeSessionBtn"),
-  loadDrillBtn: document.getElementById("loadDrillBtn"),
+  newGameBtn: document.getElementById("newGameBtn"),
+  tipBtn: document.getElementById("tipBtn"),
   sessionStatus: document.getElementById("sessionStatus"),
+  turnStatus: document.getElementById("turnStatus"),
+  diceStatus: document.getElementById("diceStatus"),
   boardGrid: document.getElementById("boardGrid"),
   offTrays: document.getElementById("offTrays"),
-  turnLabel: document.getElementById("turnLabel"),
-  animationStatus: document.getElementById("animationStatus"),
-  barOffLabel: document.getElementById("barOffLabel"),
-  cubeLabel: document.getElementById("cubeLabel"),
-  fromBarBtn: document.getElementById("fromBarBtn"),
-  toOffBtn: document.getElementById("toOffBtn"),
-  undoStepBtn: document.getElementById("undoStepBtn"),
-  clearMoveBtn: document.getElementById("clearMoveBtn"),
-  replayMoveBtn: document.getElementById("replayMoveBtn"),
-  currentMove: document.getElementById("currentMove"),
-  submitMoveBtn: document.getElementById("submitMoveBtn"),
-  legalMoves: document.getElementById("legalMoves"),
+  moveStatus: document.getElementById("moveStatus"),
   feedback: document.getElementById("feedback"),
-  moveLog: document.getElementById("moveLog"),
-  turnReplayPicker: document.getElementById("turnReplayPicker"),
-  replayTurnBtn: document.getElementById("replayTurnBtn"),
-  trainingSummary: document.getElementById("trainingSummary"),
-  cubeAction: document.getElementById("cubeAction"),
-  cubeCheckBtn: document.getElementById("cubeCheckBtn"),
-  cubeFeedback: document.getElementById("cubeFeedback"),
-  analysisMode: document.getElementById("analysisMode"),
-  queueAnalysisBtn: document.getElementById("queueAnalysisBtn"),
-  runNextAnalysisBtn: document.getElementById("runNextAnalysisBtn"),
-  retryLatestJobBtn: document.getElementById("retryLatestJobBtn"),
-  cleanupJobsBtn: document.getElementById("cleanupJobsBtn"),
-  analysisJobs: document.getElementById("analysisJobs"),
-  drillStatus: document.getElementById("drillStatus"),
-  drillAnswer: document.getElementById("drillAnswer"),
-  submitDrillBtn: document.getElementById("submitDrillBtn"),
 };
-
-function notify(text, isError = false) {
-  el.feedback.textContent = isError ? `Error: ${text}` : text;
-}
-
-function renderAnimationStatus() {
-  el.animationStatus.textContent = state.animating ? "Animating..." : "Idle";
-}
-
-function savePreferences() {
-  window.localStorage.setItem("gammondator.profileId", el.profileId.value || "default");
-  window.localStorage.setItem("gammondator.animationMs", String(el.animationMs.value || "320"));
-  window.localStorage.setItem("gammondator.timelineLimit", String(el.timelineLimit.value || "300"));
-  window.localStorage.setItem("gammondator.turnActorFilter", el.turnActorFilter.value || "all");
-}
-
-function loadPreferences() {
-  const profileId = window.localStorage.getItem("gammondator.profileId");
-  if (profileId) {
-    el.profileId.value = profileId;
-  }
-  const animationMs = window.localStorage.getItem("gammondator.animationMs");
-  if (animationMs) {
-    el.animationMs.value = animationMs;
-  }
-  const timelineLimit = window.localStorage.getItem("gammondator.timelineLimit");
-  if (timelineLimit) {
-    el.timelineLimit.value = timelineLimit;
-  }
-  const turnActorFilter = window.localStorage.getItem("gammondator.turnActorFilter");
-  if (turnActorFilter) {
-    el.turnActorFilter.value = turnActorFilter;
-  }
-}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -121,62 +34,8 @@ async function api(path, options = {}) {
   return response.json();
 }
 
-function currentProfileId() {
-  const value = (el.profileId.value || "").trim();
-  return value || "default";
-}
-
-function rollOpeningSequence() {
-  let humanDie = 1;
-  let aiDie = 1;
-  while (humanDie === aiDie) {
-    humanDie = Math.floor(Math.random() * 6) + 1;
-    aiDie = Math.floor(Math.random() * 6) + 1;
-  }
-  const humanStarts = humanDie > aiDie;
-  return {
-    humanDie,
-    aiDie,
-    humanStarts,
-    turn: humanStarts ? "black" : "white",
-    dice: [humanDie, aiDie],
-  };
-}
-
-function setSessionStatusLabel(status, moveCount) {
-  if (!state.sessionId) {
-    el.sessionStatus.textContent = "No session";
-    return;
-  }
-  const count = Number.isFinite(moveCount) ? moveCount : 0;
-  el.sessionStatus.textContent = `Session #${state.sessionId} (${status}, moves: ${count})`;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function animationStepMs() {
-  const parsed = Number(el.animationMs.value);
-  if (!Number.isFinite(parsed)) return 320;
-  return Math.max(120, Math.min(900, parsed));
-}
-
-function currentTimelineLimit() {
-  const parsed = Number(el.timelineLimit.value);
-  if (!Number.isFinite(parsed)) return 300;
-  return Math.max(20, Math.min(1000, Math.round(parsed)));
-}
-
-function currentTurnActorFilter() {
-  const value = el.turnActorFilter.value;
-  return value === "human" || value === "ai" ? value : "all";
-}
-
-function workingPosition() {
-  if (!state.position) return null;
-  if (!state.moveSteps.length) return state.position;
-  return projectPositionAfterSteps(state.position, state.moveSteps);
+function notify(message, isError = false) {
+  el.feedback.textContent = isError ? `Error: ${message}` : message;
 }
 
 function clonePosition(position) {
@@ -192,30 +51,89 @@ function clonePosition(position) {
   };
 }
 
-function clearStepHighlight() {
-  state.activeStepHighlight = null;
-}
-
-function resetAnimationState() {
-  state.animationSeq += 1;
-  state.animating = false;
-  clearStepHighlight();
-  renderAnimationStatus();
-}
-
-function setLastReplay(startPosition, steps, finalPosition) {
-  state.lastReplay = {
-    startPosition: clonePosition(startPosition),
-    steps: steps.map((step) => ({ from_point: step.from_point, to_point: step.to_point })),
-    finalPosition: clonePosition(finalPosition),
+function rollOpeningSequence() {
+  let blackDie = 1;
+  let whiteDie = 1;
+  while (blackDie === whiteDie) {
+    blackDie = Math.floor(Math.random() * 6) + 1;
+    whiteDie = Math.floor(Math.random() * 6) + 1;
+  }
+  return {
+    turn: blackDie > whiteDie ? "black" : "white",
+    dice: [blackDie, whiteDie],
   };
 }
 
-function applyAnimatedStep(position, step, side) {
+function startingPosition() {
+  const opening = rollOpeningSequence();
+  return {
+    points: [-2, 0, 0, 0, 0, 5, 0, 3, 0, 0, 0, -5, 5, 0, 0, 0, -3, 0, -5, 0, 0, 0, 0, 2],
+    bar_white: 0,
+    bar_black: 0,
+    off_white: 0,
+    off_black: 0,
+    turn: opening.turn,
+    cube_value: 1,
+    dice: opening.dice,
+  };
+}
+
+function formatMoveAnalysisSummary(analysis) {
+  if (!analysis || !analysis.played_move || !analysis.best_move) {
+    return "No move analysis available.";
+  }
+  const played = analysis.played_move;
+  const best = analysis.best_move;
+  const reasons = Array.isArray(played.why) && played.why.length ? played.why.join("; ") : "No notes.";
+  return [
+    `Played: ${played.notation}`,
+    `Quality: ${played.quality} (equity ${played.equity.toFixed(3)}, loss ${played.delta_vs_best.toFixed(3)})`,
+    `Best: ${best.notation} (equity ${best.equity.toFixed(3)})`,
+    `Why: ${reasons}`,
+  ].join("\n");
+}
+
+function renderStatus() {
+  if (!state.sessionId || !state.position) {
+    el.sessionStatus.textContent = "Session: -";
+    el.turnStatus.textContent = "Turn: -";
+    el.diceStatus.textContent = "Dice: -";
+    el.moveStatus.textContent = "Starting up...";
+    el.tipBtn.disabled = true;
+    return;
+  }
+
+  el.sessionStatus.textContent = `Session: #${state.sessionId}`;
+  el.turnStatus.textContent = `Turn: ${state.position.turn}`;
+  el.diceStatus.textContent = `Dice: ${state.position.dice[0]}-${state.position.dice[1]}`;
+
+  if (state.submittingMove) {
+    el.moveStatus.textContent = "Submitting move...";
+  } else if (state.position.turn !== HUMAN_SIDE) {
+    el.moveStatus.textContent = "AI is playing white...";
+  } else if (!state.legalMovesLoaded) {
+    el.moveStatus.textContent = "Loading legal moves...";
+  } else if (state.selectedFrom !== null) {
+    el.moveStatus.textContent = `Selected ${state.selectedFrom}. Pick destination.`;
+  } else if (state.moveSteps.length > 0) {
+    const notation = state.moveSteps.map((step) => `${step.from_point}/${step.to_point}`).join(" ");
+    el.moveStatus.textContent = `Building move: ${notation}`;
+  } else {
+    el.moveStatus.textContent = "Your turn (black). Select checker to move.";
+  }
+
+  el.tipBtn.disabled =
+    !state.position ||
+    state.position.turn !== HUMAN_SIDE ||
+    state.submittingMove ||
+    !state.legalMovesLoaded ||
+    state.legalMoves.length === 0;
+}
+
+function applyPreviewStep(position, step, side) {
   const next = clonePosition(position);
   const from = Number(step.from_point);
   const to = Number(step.to_point);
-  const hit = { point: null, side: null };
 
   if (side === "white") {
     if (from >= 1 && from <= 24) {
@@ -223,7 +141,7 @@ function applyAnimatedStep(position, step, side) {
     } else if (from === 25) {
       next.bar_white -= 1;
     }
-  } else if (side === "black") {
+  } else {
     if (from >= 1 && from <= 24) {
       next.points[from - 1] += 1;
     } else if (from === 0) {
@@ -241,147 +159,33 @@ function applyAnimatedStep(position, step, side) {
       if (next.points[idx] === -1) {
         next.points[idx] = 0;
         next.bar_black += 1;
-        hit.point = to;
-        hit.side = "black";
       }
       next.points[idx] += 1;
     } else {
       if (next.points[idx] === 1) {
         next.points[idx] = 0;
         next.bar_white += 1;
-        hit.point = to;
-        hit.side = "white";
       }
       next.points[idx] -= 1;
     }
   }
 
-  return { position: next, hit };
+  return next;
 }
 
-function summarizeStepEvents(startPosition, steps) {
-  let preview = clonePosition(startPosition);
-  const side = startPosition.turn;
-  let hits = 0;
+function projectPositionAfterSteps(position, steps) {
+  let preview = clonePosition(position);
+  const side = position.turn;
   for (const step of steps) {
-    const applied = applyAnimatedStep(preview, step, side);
-    preview = applied.position;
-    if (applied.hit.point !== null) {
-      hits += 1;
-    }
+    preview = applyPreviewStep(preview, step, side);
   }
-  return { hits };
+  return preview;
 }
 
-async function animateMoveReplay(startPosition, steps, finalPosition) {
-  if (!Array.isArray(steps) || steps.length === 0) {
-    state.position = finalPosition;
-    renderBoard();
-    return;
-  }
-
-  const seq = state.animationSeq + 1;
-  state.animationSeq = seq;
-  state.animating = true;
-  clearStepHighlight();
-  clearMoveHighlight(false);
-  renderAnimationStatus();
-  refreshButtons();
-  renderMoveBuilder();
-
-  let preview = clonePosition(startPosition);
-  const side = startPosition.turn;
-  state.position = preview;
-  renderBoard();
-
-  for (const step of steps) {
-    if (state.animationSeq !== seq) {
-      return;
-    }
-    const applied = applyAnimatedStep(preview, step, side);
-    preview = applied.position;
-    state.position = preview;
-    state.activeStepHighlight = {
-      from: Number(step.from_point),
-      to: Number(step.to_point),
-      hitPoint: applied.hit.point,
-      hitSide: applied.hit.side,
-    };
-    renderBoard();
-    await sleep(animationStepMs());
-  }
-
-  if (state.animationSeq !== seq) {
-    return;
-  }
-  clearStepHighlight();
-  state.position = finalPosition;
-  state.animating = false;
-  renderAnimationStatus();
-  refreshButtons();
-  renderBoard();
-}
-
-function clearMoveHighlight(shouldRender = true) {
-  if (state.highlightTimerId !== null) {
-    clearTimeout(state.highlightTimerId);
-    state.highlightTimerId = null;
-  }
-  state.lastMoveHighlight = null;
-  if (shouldRender) {
-    renderBoard();
-  }
-}
-
-function setMoveHighlightFromSteps(steps) {
-  if (!Array.isArray(steps) || steps.length === 0) {
-    clearMoveHighlight();
-    return;
-  }
-
-  const sourcePoints = new Set();
-  const targetPoints = new Set();
-  let barActive = false;
-  let offWhiteActive = false;
-  let offBlackActive = false;
-
-  for (const step of steps) {
-    if (!step) continue;
-    const from = Number(step.from_point);
-    const to = Number(step.to_point);
-
-    if (from >= 1 && from <= 24) {
-      sourcePoints.add(from);
-    } else if (from === 0 || from === 25) {
-      barActive = true;
-    }
-
-    if (to >= 1 && to <= 24) {
-      targetPoints.add(to);
-    } else if (to === 0) {
-      offWhiteActive = true;
-    } else if (to === 25) {
-      offBlackActive = true;
-    }
-  }
-
-  if (state.highlightTimerId !== null) {
-    clearTimeout(state.highlightTimerId);
-    state.highlightTimerId = null;
-  }
-  state.lastMoveHighlight = {
-    sourcePoints,
-    targetPoints,
-    barActive,
-    offWhiteActive,
-    offBlackActive,
-  };
-  renderBoard();
-  state.highlightTimerId = window.setTimeout(() => {
-    state.lastMoveHighlight = null;
-    state.highlightTimerId = null;
-    renderBoard();
-  }, 900);
+function workingPosition() {
+  if (!state.position) return null;
+  if (state.moveSteps.length === 0) return state.position;
+  return projectPositionAfterSteps(state.position, state.moveSteps);
 }
 
 function getPrefixMatchingMoves() {
@@ -402,8 +206,9 @@ function getPrefixMatchingMoves() {
         break;
       }
     }
-    if (!prefixMatches) continue;
-    matches.push(move);
+    if (prefixMatches) {
+      matches.push(move);
+    }
   }
   return matches;
 }
@@ -433,107 +238,29 @@ function getValidTargetsForSelection() {
   return targets;
 }
 
-function canChooseSource(point) {
-  if (!state.position || state.animating || state.submittingMove) {
-    return false;
-  }
-  if (state.position.turn !== HUMAN_SIDE) {
-    return false;
-  }
-  const position = workingPosition();
-  if (!position) return false;
-  const turn = state.position.turn;
-  if (point >= 1 && point <= 24) {
-    const value = position.points[point - 1] || 0;
-    if (turn === "white" && value <= 0) return false;
-    if (turn === "black" && value >= 0) return false;
-  } else if (point === 25) {
-    if (turn !== "white" || position.bar_white <= 0) return false;
-  } else if (point === 0) {
-    if (turn !== "black" || position.bar_black <= 0) return false;
-  } else {
-    return false;
-  }
-
-  const validSources = getValidSourcesForPrefix();
-  if (state.legalMoves.length > 0) {
-    return validSources.size > 0 && validSources.has(point);
-  }
-  return true;
-}
-
-function clearDragState() {
-  state.dragFrom = null;
-  state.touchDragging = false;
-}
-
-function chooseSource(point, showErrors = true) {
-  if (!state.position || state.submittingMove) return false;
-  if (!state.legalMovesLoaded) {
-    if (showErrors) {
-      notify("Loading legal moves for this turn...", true);
-    }
-    return false;
-  }
-  if (!canChooseSource(point)) {
-    if (showErrors) {
-      notify("That checker is not legal for this step.", true);
-    }
-    return false;
-  }
-  state.selectedFrom = point;
-  renderMoveBuilder();
-  renderBoard();
-  return true;
-}
-
-function chooseDestination(point, showErrors = true) {
-  if (!state.position || state.selectedFrom === null || state.animating || state.submittingMove) return false;
-  const validTargets = getValidTargetsForSelection();
-  if (state.legalMoves.length > 0 && (validTargets.size === 0 || !validTargets.has(point))) {
-    if (showErrors) {
-      notify("That destination is not legal for the selected checker.", true);
-    }
-    return false;
-  }
-  state.moveSteps.push({ from_point: state.selectedFrom, to_point: point });
-  state.selectedFrom = null;
-  clearDragState();
-  const exactMatch = exactLegalMoveMatch();
-  if (exactMatch) {
-    state.moveSteps = exactMatch.steps.map((step) => ({
-      from_point: step.from_point,
-      to_point: step.to_point,
-    }));
-  }
-  renderMoveBuilder();
-  renderBoard();
-  maybeAutoSubmitBuiltMove();
-  return true;
-}
-
 function exactLegalMoveMatch() {
   if (!state.legalMoves.length || state.moveSteps.length === 0) {
     return null;
   }
-  // Prefer strict step-order match first.
+
   for (const move of state.legalMoves) {
     if (!Array.isArray(move.steps)) continue;
     if (move.steps.length !== state.moveSteps.length) continue;
-    let prefixMatches = true;
+
+    let orderedMatch = true;
     for (let i = 0; i < state.moveSteps.length; i += 1) {
       const expected = move.steps[i];
       const actual = state.moveSteps[i];
       if (!expected || expected.from_point !== actual.from_point || expected.to_point !== actual.to_point) {
-        prefixMatches = false;
+        orderedMatch = false;
         break;
       }
     }
-    if (prefixMatches) {
+    if (orderedMatch) {
       return move;
     }
   }
-  // Fallback: same step multiset in a different order.
+
   const playedKey = state.moveSteps
     .map((step) => `${Number(step.from_point)}>${Number(step.to_point)}`)
     .sort()
@@ -552,344 +279,17 @@ function exactLegalMoveMatch() {
   return null;
 }
 
-function maybeAutoSubmitBuiltMove() {
-  if (!state.position || state.animating || state.submittingMove) return;
-  if (state.selectedFrom !== null || state.moveSteps.length === 0) return;
-  const hasContinuation = getPrefixMatchingMoves().length > 0;
-  const exactMatch = exactLegalMoveMatch();
-  if (!exactMatch && hasContinuation) return;
-  if (exactMatch) {
-    state.moveSteps = exactMatch.steps.map((step) => ({
-      from_point: step.from_point,
-      to_point: step.to_point,
-    }));
+function renderCheckers(side, count) {
+  if (count <= 0) return "";
+  const visible = Math.min(count, 5);
+  const items = [];
+  for (let i = 0; i < visible; i += 1) {
+    items.push(`<span class="checker ${side}"></span>`);
   }
-  renderMoveBuilder();
-  renderBoard();
-  if (state.position.turn !== HUMAN_SIDE) return;
-  submitMove();
-}
-
-function onCheckerDragStart(event) {
-  const fromPoint = Number(event.currentTarget.dataset.fromPoint);
-  if (!chooseSource(fromPoint, false)) {
-    event.preventDefault();
-    notify("That checker is not legal for this step.", true);
-    return;
+  if (count > visible) {
+    items.push(`<span class="checker-count">+${count - visible}</span>`);
   }
-  state.dragFrom = fromPoint;
-  event.currentTarget.classList.add("dragging");
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", String(fromPoint));
-  }
-}
-
-function onCheckerDragEnd(event) {
-  event.currentTarget.classList.remove("dragging");
-  clearDragState();
-  renderBoard();
-}
-
-function onCheckerTouchStart(event) {
-  const fromPoint = Number(event.currentTarget.dataset.fromPoint);
-  if (!chooseSource(fromPoint, false)) {
-    notify("That checker is not legal for this step.", true);
-    return;
-  }
-  state.dragFrom = fromPoint;
-  state.touchDragging = true;
-}
-
-function canDropOn(targetPoint) {
-  if (state.selectedFrom === null && state.dragFrom !== null) {
-    state.selectedFrom = state.dragFrom;
-  }
-  if (state.selectedFrom === null) return false;
-  const validTargets = getValidTargetsForSelection();
-  if (validTargets.size === 0) return true;
-  return validTargets.has(targetPoint);
-}
-
-function onPointDragOver(event) {
-  const targetPoint = Number(event.currentTarget.dataset.point);
-  if (!Number.isNaN(targetPoint) && canDropOn(targetPoint)) {
-    event.preventDefault();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "move";
-    }
-  }
-}
-
-function onPointDrop(event) {
-  event.preventDefault();
-  const targetPoint = Number(event.currentTarget.dataset.point);
-  if (Number.isNaN(targetPoint)) return;
-  if (state.selectedFrom === null && state.dragFrom !== null) {
-    state.selectedFrom = state.dragFrom;
-  }
-  chooseDestination(targetPoint, true);
-}
-
-function onPointTouchEnd(event) {
-  if (!state.touchDragging) return;
-  event.preventDefault();
-  const targetPoint = Number(event.currentTarget.dataset.point);
-  if (Number.isNaN(targetPoint)) return;
-  if (state.selectedFrom === null && state.dragFrom !== null) {
-    state.selectedFrom = state.dragFrom;
-  }
-  chooseDestination(targetPoint, true);
-}
-
-function onOffDrop(event) {
-  event.preventDefault();
-  if (!state.position) return;
-  const offPoint = state.position.turn === "white" ? 0 : 25;
-  if (state.selectedFrom === null && state.dragFrom !== null) {
-    state.selectedFrom = state.dragFrom;
-  }
-  chooseDestination(offPoint, true);
-}
-
-function onOffDragOver(event) {
-  if (!state.position) return;
-  const offPoint = state.position.turn === "white" ? 0 : 25;
-  if (canDropOn(offPoint)) {
-    event.preventDefault();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "move";
-    }
-  }
-}
-
-async function refreshLegalMoves(silent = true) {
-  if (!state.position) {
-    state.legalMovesReqSeq += 1;
-    state.legalMoves = [];
-    state.legalMovesLoaded = false;
-    renderLegalMoves();
-    renderBoard();
-    renderMoveBuilder();
-    return;
-  }
-  const requestSeq = state.legalMovesReqSeq + 1;
-  state.legalMovesReqSeq = requestSeq;
-  state.legalMovesLoaded = false;
-  renderMoveBuilder();
-
-  try {
-    const data = await api("/legal-moves", {
-      method: "POST",
-      body: JSON.stringify({ position: state.position }),
-    });
-    if (requestSeq !== state.legalMovesReqSeq) return;
-    state.legalMoves = data.moves;
-    state.legalMovesLoaded = true;
-    renderLegalMoves();
-    renderBoard();
-    renderMoveBuilder();
-    maybeAutoSubmitBuiltMove();
-    if (!silent) {
-      notify(`Loaded ${data.moves.length} legal moves.`);
-    }
-  } catch (err) {
-    if (requestSeq !== state.legalMovesReqSeq) return;
-    state.legalMovesLoaded = false;
-    renderMoveBuilder();
-    if (!silent) {
-      notify(err.message, true);
-    }
-  }
-}
-
-function renderBoard() {
-  if (!state.position) {
-    el.boardGrid.innerHTML = "";
-    el.offTrays.innerHTML = "";
-    renderAnimationStatus();
-    return;
-  }
-  const boardPosition = workingPosition();
-  if (!boardPosition) {
-    return;
-  }
-  renderAnimationStatus();
-
-  el.turnLabel.textContent = `Turn: ${state.position.turn}`;
-  el.barOffLabel.textContent = `Bar W/B: ${boardPosition.bar_white}/${boardPosition.bar_black} | Off W/B: ${boardPosition.off_white}/${boardPosition.off_black}`;
-  el.cubeLabel.textContent = `Cube: ${state.position.cube_value} | Dice: ${state.position.dice[0]}-${state.position.dice[1]}`;
-
-  const topLeft = [13, 14, 15, 16, 17, 18];
-  const topRight = [19, 20, 21, 22, 23, 24];
-  const bottomLeft = [12, 11, 10, 9, 8, 7];
-  const bottomRight = [6, 5, 4, 3, 2, 1];
-  const validTargets = getValidTargetsForSelection();
-
-  function buildPoint(point, orientation, stripeDark) {
-    const idx = point - 1;
-    const value = boardPosition.points[idx];
-    const side = value > 0 ? "white" : value < 0 ? "black" : "empty";
-    const count = Math.abs(value);
-    const pointEl = document.createElement("button");
-    const isSelected = state.selectedFrom === point;
-    const isValidTarget = validTargets.has(point);
-    const isMoveSource = Boolean(state.lastMoveHighlight?.sourcePoints?.has(point));
-    const isMoveTarget = Boolean(state.lastMoveHighlight?.targetPoints?.has(point));
-    const isStepSource = state.activeStepHighlight?.from === point;
-    const isStepTarget = state.activeStepHighlight?.to === point;
-    const isHitPoint = state.activeStepHighlight?.hitPoint === point;
-    pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${isSelected ? " selected" : ""}${isValidTarget ? " valid-target" : ""}${isMoveSource || isStepSource ? " move-source" : ""}${isMoveTarget || isStepTarget ? " move-target" : ""}${isHitPoint ? " move-hit" : ""}`;
-    pointEl.dataset.point = String(point);
-    pointEl.addEventListener("click", () => onPointClick(point));
-    pointEl.addEventListener("dragover", onPointDragOver);
-    pointEl.addEventListener("drop", onPointDrop);
-    pointEl.addEventListener("touchend", onPointTouchEnd, { passive: false });
-
-    const num = document.createElement("span");
-    num.className = "point-number";
-    num.textContent = String(point);
-    pointEl.appendChild(num);
-
-    const stack = document.createElement("div");
-    stack.className = "checker-stack";
-    if (side !== "empty") {
-      const visible = Math.min(count, 5);
-      const canDragFromPoint = canChooseSource(point);
-      for (let i = 0; i < visible; i += 1) {
-        const checker = document.createElement("span");
-        checker.className = `checker ${side}`;
-        checker.dataset.fromPoint = String(point);
-        checker.draggable = canDragFromPoint;
-        if (canDragFromPoint) {
-          checker.classList.add("draggable");
-          checker.addEventListener("dragstart", onCheckerDragStart);
-          checker.addEventListener("dragend", onCheckerDragEnd);
-          checker.addEventListener("touchstart", onCheckerTouchStart, { passive: true });
-        }
-        stack.appendChild(checker);
-      }
-      if (count > 5) {
-        const extra = document.createElement("span");
-        extra.className = "checker-count";
-        extra.textContent = `+${count - 5}`;
-        stack.appendChild(extra);
-      }
-    }
-    pointEl.appendChild(stack);
-    return pointEl;
-  }
-
-  function buildHalf(points, orientation) {
-    const half = document.createElement("div");
-    half.className = "board-half";
-    points.forEach((point, i) => {
-      half.appendChild(buildPoint(point, orientation, i % 2 === 0));
-    });
-    return half;
-  }
-
-  const board = document.createElement("div");
-  board.className = "bg-board";
-
-  const topRow = document.createElement("div");
-  topRow.className = "board-row top";
-  topRow.appendChild(buildHalf(topLeft, "down"));
-
-  const bar = document.createElement("div");
-  const barSourceActive =
-    Boolean(state.lastMoveHighlight?.barActive) ||
-    state.activeStepHighlight?.from === 0 ||
-    state.activeStepHighlight?.from === 25;
-  const barHitActive = Boolean(state.activeStepHighlight?.hitSide);
-  bar.className = `board-bar${state.selectedFrom === 25 || state.selectedFrom === 0 ? " selected" : ""}${barSourceActive ? " move-source" : ""}${barHitActive ? " move-hit" : ""}`;
-  const barLabel = document.createElement("div");
-  barLabel.className = "bar-label";
-  barLabel.textContent = "BAR";
-  bar.appendChild(barLabel);
-
-  const barCounts = document.createElement("div");
-  barCounts.className = "bar-counts";
-  barCounts.textContent = `W ${boardPosition.bar_white} / B ${boardPosition.bar_black}`;
-  bar.appendChild(barCounts);
-
-  const barStack = document.createElement("div");
-  barStack.className = "bar-stack";
-
-  const whiteVisible = Math.min(boardPosition.bar_white, 2);
-  for (let i = 0; i < whiteVisible; i += 1) {
-    const checker = document.createElement("span");
-    checker.className = "checker white";
-    if (canChooseSource(25)) {
-      checker.classList.add("draggable");
-      checker.dataset.fromPoint = "25";
-      checker.draggable = true;
-      checker.addEventListener("dragstart", onCheckerDragStart);
-      checker.addEventListener("dragend", onCheckerDragEnd);
-      checker.addEventListener("touchstart", onCheckerTouchStart, { passive: true });
-    }
-    barStack.appendChild(checker);
-  }
-  if (boardPosition.bar_white > 2) {
-    const extra = document.createElement("span");
-    extra.className = "checker-count";
-    extra.textContent = `+${boardPosition.bar_white - 2}`;
-    barStack.appendChild(extra);
-  }
-
-  const blackVisible = Math.min(boardPosition.bar_black, 2);
-  for (let i = 0; i < blackVisible; i += 1) {
-    const checker = document.createElement("span");
-    checker.className = "checker black";
-    if (canChooseSource(0)) {
-      checker.classList.add("draggable");
-      checker.dataset.fromPoint = "0";
-      checker.draggable = true;
-      checker.addEventListener("dragstart", onCheckerDragStart);
-      checker.addEventListener("dragend", onCheckerDragEnd);
-      checker.addEventListener("touchstart", onCheckerTouchStart, { passive: true });
-    }
-    barStack.appendChild(checker);
-  }
-  if (boardPosition.bar_black > 2) {
-    const extra = document.createElement("span");
-    extra.className = "checker-count";
-    extra.textContent = `+${boardPosition.bar_black - 2}`;
-    barStack.appendChild(extra);
-  }
-  bar.appendChild(barStack);
-  bar.title = "Click to select checker from bar";
-  bar.addEventListener("click", () => chooseFromBar());
-  topRow.appendChild(bar);
-
-  topRow.appendChild(buildHalf(topRight, "down"));
-
-  const bottomRow = document.createElement("div");
-  bottomRow.className = "board-row bottom";
-  bottomRow.appendChild(buildHalf(bottomLeft, "up"));
-  bottomRow.appendChild(document.createElement("div")).className = "board-bar-spacer";
-  bottomRow.appendChild(buildHalf(bottomRight, "up"));
-
-  board.appendChild(topRow);
-  board.appendChild(bottomRow);
-
-  el.boardGrid.innerHTML = "";
-  el.boardGrid.appendChild(board);
-
-  const off = document.createElement("div");
-  off.className = "off-trays-inner";
-  off.innerHTML = `
-    <div class="off-tray${state.lastMoveHighlight?.offWhiteActive || state.activeStepHighlight?.to === 0 ? " move-target" : ""}">
-      <div class="off-title">White Off</div>
-      <div class="off-stack">${renderOffCheckers("white", boardPosition.off_white)}</div>
-    </div>
-    <div class="off-tray${state.lastMoveHighlight?.offBlackActive || state.activeStepHighlight?.to === 25 ? " move-target" : ""}">
-      <div class="off-title">Black Off</div>
-      <div class="off-stack">${renderOffCheckers("black", boardPosition.off_black)}</div>
-    </div>
-  `;
-  el.offTrays.innerHTML = "";
-  el.offTrays.appendChild(off);
+  return items.join("");
 }
 
 function renderOffCheckers(side, count) {
@@ -905,234 +305,11 @@ function renderOffCheckers(side, count) {
   return items.join("");
 }
 
-function renderMoveBuilder() {
-  const validTargets = getValidTargetsForSelection();
-  const offPoint = state.position ? (state.position.turn === "white" ? 0 : 25) : null;
-  const humanTurn = Boolean(state.position && state.position.turn === HUMAN_SIDE);
-  const ready = state.legalMovesLoaded;
-
-  if (state.moveSteps.length === 0) {
-    el.currentMove.textContent = "No move selected";
-  } else {
-    const text = state.moveSteps.map((s) => `${s.from_point}/${s.to_point}`).join(" ");
-    el.currentMove.textContent = text;
-  }
-  el.clearMoveBtn.disabled = state.moveSteps.length === 0;
-  el.undoStepBtn.disabled = state.moveSteps.length === 0;
-  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating || state.submittingMove || !humanTurn || !ready;
-  el.fromBarBtn.disabled = !state.position || state.animating || state.submittingMove || !humanTurn || !ready;
-  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating || state.submittingMove || !humanTurn || !ready;
-  el.clearMoveBtn.disabled = el.clearMoveBtn.disabled || state.animating || state.submittingMove;
-  el.undoStepBtn.disabled = el.undoStepBtn.disabled || state.animating || state.submittingMove;
-  el.replayMoveBtn.disabled = state.animating || !state.lastReplay;
-  el.toOffBtn.classList.toggle("valid-target-btn", offPoint !== null && validTargets.has(offPoint));
-}
-
-function renderLegalMoves() {
-  el.legalMoves.innerHTML = "";
-  for (const move of state.legalMoves) {
-    const li = document.createElement("li");
-    li.textContent = move.notation;
-    li.title = "Click to auto-fill this move";
-    li.addEventListener("click", () => {
-      state.moveSteps = move.steps.map((s) => ({ from_point: s.from_point, to_point: s.to_point }));
-      state.selectedFrom = null;
-      renderMoveBuilder();
-      renderBoard();
-      maybeAutoSubmitBuiltMove();
-    });
-    el.legalMoves.appendChild(li);
-  }
-}
-
-function renderMoveLog() {
-  if (!state.moveLog.length) {
-    el.moveLog.textContent = "No moves yet.";
-    return;
-  }
-  const lines = state.moveLog.map((entry, index) => {
-    const note = entry.note ? ` (${entry.note})` : "";
-    const dice = entry.dice ? ` [${entry.dice}]` : "";
-    return `${index + 1}. ${entry.actor}: ${entry.notation}${dice}${note}`;
-  });
-  el.moveLog.textContent = lines.join("\n");
-}
-
-function renderTurnReplayPicker() {
-  el.turnReplayPicker.innerHTML = "";
-  if (!state.sessionTurns.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "No turn replay data";
-    el.turnReplayPicker.appendChild(option);
-    el.replayTurnBtn.disabled = true;
-    return;
-  }
-  for (const turn of state.sessionTurns) {
-    const option = document.createElement("option");
-    option.value = String(turn.turn_id);
-    const actor = turn.actor === "ai" ? "AI" : "You";
-    option.textContent = `Turn ${turn.turn_id}: ${actor} ${turn.played_notation}`;
-    el.turnReplayPicker.appendChild(option);
-  }
-  el.replayTurnBtn.disabled = state.animating;
-}
-
-function formatMoveAnalysisSummary(analysis) {
-  if (!analysis || !analysis.played_move || !analysis.best_move) {
-    return "No move analysis available.";
-  }
-  const played = analysis.played_move;
-  const best = analysis.best_move;
-  const reasons = Array.isArray(played.why) && played.why.length ? played.why.join("; ") : "No notes.";
-  return [
-    `Played: ${played.notation}`,
-    `Quality: ${played.quality} (equity ${played.equity.toFixed(3)}, loss ${played.delta_vs_best.toFixed(3)})`,
-    `Best: ${best.notation} (equity ${best.equity.toFixed(3)})`,
-    `Why: ${reasons}`,
-  ].join("\n");
-}
-
-function refreshButtons() {
-  const active = Boolean(state.sessionId);
-  const blocked = state.animating || state.submittingMove;
-  el.loadLegalBtn.disabled = !active || blocked;
-  el.aiTurnBtn.disabled = !active || blocked;
-  el.aiSuggestBtn.disabled = !active || blocked;
-  el.rollBtn.disabled = !active || blocked;
-  el.sessionReportBtn.disabled = !active || blocked;
-  el.turnTimelineBtn.disabled = !active || blocked;
-  el.downloadTimelineBtn.disabled = !active || blocked;
-  el.closeSessionBtn.disabled = !active || blocked;
-  el.cubeCheckBtn.disabled = !active || blocked;
-  el.queueAnalysisBtn.disabled = !active || blocked;
-  el.resumeSessionBtn.disabled = false;
-  el.refreshSessionsBtn.disabled = blocked;
-  el.replayTurnBtn.disabled = blocked || state.sessionTurns.length === 0;
-}
-
-async function loadTrainingSummary() {
-  try {
-    const [dashboard, report] = await Promise.all([
-      api(`/training/dashboard?profile_id=${encodeURIComponent(currentProfileId())}`),
-      api(`/training/report?profile_id=${encodeURIComponent(currentProfileId())}`),
-    ]);
-    el.trainingSummary.textContent = `${JSON.stringify(dashboard, null, 2)}\n\nRecommendations:\n${JSON.stringify(report.recommendations, null, 2)}`;
-  } catch (err) {
-    el.trainingSummary.textContent = `Unable to load training summary: ${err.message}`;
-  }
-}
-
-async function loadAnalysisJobs() {
-  try {
-    const profile = encodeURIComponent(currentProfileId());
-    const [jobs, stats] = await Promise.all([
-      api(`/analysis-jobs?profile_id=${profile}&limit=8`),
-      api(`/analysis-jobs/stats?profile_id=${profile}`),
-    ]);
-    el.analysisJobs.textContent = `Stats:\\n${JSON.stringify(stats, null, 2)}\\n\\nJobs:\\n${JSON.stringify(jobs, null, 2)}`;
-  } catch (err) {
-    el.analysisJobs.textContent = `Unable to load jobs: ${err.message}`;
-  }
-}
-
-function renderSessionPicker(sessions) {
-  el.sessionPicker.innerHTML = "";
-  if (!sessions.length) {
-    const empty = document.createElement("option");
-    empty.value = "";
-    empty.textContent = "No sessions";
-    el.sessionPicker.appendChild(empty);
-    el.resumeSessionBtn.disabled = true;
-    return;
-  }
-
-  for (const session of sessions) {
-    const option = document.createElement("option");
-    option.value = String(session.session_id);
-    option.textContent = `#${session.session_id} ${session.status} moves:${session.move_count}`;
-    el.sessionPicker.appendChild(option);
-  }
-  el.resumeSessionBtn.disabled = false;
-}
-
-async function loadSessionTurns(sessionId) {
-  const actor = currentTurnActorFilter();
-  const actorQuery = actor === "all" ? "" : `&actor=${encodeURIComponent(actor)}`;
-  const data = await api(`/sessions/${sessionId}/turns?limit=${currentTimelineLimit()}${actorQuery}`);
-  const turns = data.turns || [];
-  state.sessionTurns = turns;
-  state.moveLog = turns.map((turn) => {
-    const actor = turn.actor === "ai" ? "AI" : "You";
-    const noteParts = [`${turn.quality} ${Number(turn.equity_loss).toFixed(3)}`];
-    if (turn.best_notation && turn.best_notation !== turn.played_notation) {
-      noteParts.push(`best:${turn.best_notation}`);
-    }
-    return {
-      actor,
-      notation: turn.played_notation,
-      dice: Array.isArray(turn.dice) && turn.dice.length === 2 ? `${turn.dice[0]}-${turn.dice[1]}` : "",
-      note: noteParts.join(" "),
-    };
-  });
-  renderMoveLog();
-  renderTurnReplayPicker();
-}
-
-async function loadSessionList() {
-  try {
-    const profile = encodeURIComponent(currentProfileId());
-    const data = await api(`/sessions?profile_id=${profile}&status=active`);
-    const sessions = data.sessions || [];
-    renderSessionPicker(sessions);
-    return sessions;
-  } catch (err) {
-    notify(`Unable to load sessions: ${err.message}`, true);
-    return [];
-  }
-}
-
-async function resumeSelectedSession() {
-  const selected = Number(el.sessionPicker.value);
-  if (!selected) {
-    notify("Select a session to resume.", true);
-    return;
-  }
-  try {
-    const session = await api(`/sessions/${selected}`);
-    if (session.status === "closed") {
-      notify(`Session #${selected} is closed. Start a new one.`, true);
-      return;
-    }
-    state.sessionId = session.session_id;
-    state.position = session.current_position;
-    state.moveSteps = [];
-    state.selectedFrom = null;
-    state.moveLog = [];
-    state.legalMoves = [];
-    state.legalMovesLoaded = false;
-    state.submittingMove = false;
-    state.sessionTurns = [];
-    state.lastReplay = null;
-    resetAnimationState();
-    clearMoveHighlight(false);
-    setSessionStatusLabel(session.status, session.move_count);
-    refreshButtons();
-    renderBoard();
-    renderMoveBuilder();
-    await loadSessionTurns(state.sessionId);
-    await refreshLegalMoves(true);
-    await autoAdvanceToHumanTurn();
-    await loadTrainingSummary();
-    await loadAnalysisJobs();
-    notify(`Resumed session #${state.sessionId}.`);
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
 function onPointClick(point) {
-  if (!state.position || state.submittingMove) return;
+  if (!state.position || state.submittingMove || state.position.turn !== HUMAN_SIDE || !state.legalMovesLoaded) {
+    return;
+  }
+
   if (state.selectedFrom === null) {
     chooseSource(point);
   } else {
@@ -1140,671 +317,422 @@ function onPointClick(point) {
   }
 }
 
-async function newSession() {
+function canChooseSource(point) {
+  if (!state.position || state.position.turn !== HUMAN_SIDE) return false;
+  const position = workingPosition();
+  if (!position) return false;
+
+  if (point >= 1 && point <= 24) {
+    const value = position.points[point - 1] || 0;
+    if (value >= 0) return false;
+  } else if (point === 0) {
+    if (position.bar_black <= 0) return false;
+  } else {
+    return false;
+  }
+
+  const validSources = getValidSourcesForPrefix();
+  if (state.legalMoves.length > 0) {
+    return validSources.size > 0 && validSources.has(point);
+  }
+  return true;
+}
+
+function chooseSource(point) {
+  if (!canChooseSource(point)) {
+    notify("That checker is not legal for this step.", true);
+    return;
+  }
+  if (state.selectedFrom === point) {
+    state.selectedFrom = null;
+  } else {
+    state.selectedFrom = point;
+  }
+  render();
+}
+
+function chooseDestination(point) {
+  if (!state.position || state.selectedFrom === null) return;
+
+  const validTargets = getValidTargetsForSelection();
+  if (state.legalMoves.length > 0 && (validTargets.size === 0 || !validTargets.has(point))) {
+    notify("That destination is not legal for the selected checker.", true);
+    return;
+  }
+
+  state.moveSteps.push({ from_point: state.selectedFrom, to_point: point });
+  state.selectedFrom = null;
+
+  const exactMatch = exactLegalMoveMatch();
+  if (exactMatch) {
+    state.moveSteps = exactMatch.steps.map((step) => ({
+      from_point: step.from_point,
+      to_point: step.to_point,
+    }));
+  }
+
+  render();
+  maybeAutoSubmitBuiltMove();
+}
+
+function maybeAutoSubmitBuiltMove() {
+  if (!state.position || state.submittingMove) return;
+  if (state.position.turn !== HUMAN_SIDE) return;
+  if (state.selectedFrom !== null || state.moveSteps.length === 0) return;
+
+  const hasContinuation = getPrefixMatchingMoves().length > 0;
+  const exactMatch = exactLegalMoveMatch();
+  if (!exactMatch && hasContinuation) return;
+
+  if (exactMatch) {
+    state.moveSteps = exactMatch.steps.map((step) => ({
+      from_point: step.from_point,
+      to_point: step.to_point,
+    }));
+  }
+
+  submitMove();
+}
+
+function renderBoard() {
+  if (!state.position) {
+    el.boardGrid.innerHTML = "";
+    el.offTrays.innerHTML = "";
+    return;
+  }
+
+  const boardPosition = workingPosition();
+  if (!boardPosition) {
+    return;
+  }
+
+  const topLeft = [13, 14, 15, 16, 17, 18];
+  const topRight = [19, 20, 21, 22, 23, 24];
+  const bottomLeft = [12, 11, 10, 9, 8, 7];
+  const bottomRight = [6, 5, 4, 3, 2, 1];
+  const validTargets = getValidTargetsForSelection();
+  const validSources = getValidSourcesForPrefix();
+
+  function buildPoint(point, orientation, stripeDark) {
+    const idx = point - 1;
+    const value = boardPosition.points[idx];
+    const side = value > 0 ? "white" : value < 0 ? "black" : "empty";
+    const count = Math.abs(value);
+    const isSelected = state.selectedFrom === point;
+    const isValidTarget = validTargets.has(point);
+    const canSource =
+      state.position.turn === HUMAN_SIDE &&
+      state.legalMovesLoaded &&
+      !state.submittingMove &&
+      (state.selectedFrom === null ? validSources.has(point) : true);
+
+    const pointEl = document.createElement("button");
+    pointEl.className = `board-point ${orientation} ${stripeDark ? "dark" : "light"}${isSelected ? " selected" : ""}${isValidTarget ? " valid-target" : ""}`;
+    pointEl.disabled = state.submittingMove || state.position.turn !== HUMAN_SIDE;
+    pointEl.addEventListener("click", () => onPointClick(point));
+
+    const num = document.createElement("span");
+    num.className = "point-number";
+    num.textContent = String(point);
+
+    const stack = document.createElement("span");
+    stack.className = "checker-stack";
+    if (side !== "empty" && count > 0) {
+      stack.innerHTML = renderCheckers(side, count);
+    }
+
+    if (canSource && state.selectedFrom === null) {
+      pointEl.title = "Select this checker";
+    }
+
+    pointEl.appendChild(num);
+    pointEl.appendChild(stack);
+    return pointEl;
+  }
+
+  function buildHalf(points, orientation) {
+    const half = document.createElement("div");
+    half.className = "board-half";
+    points.forEach((point, idx) => {
+      const stripeDark = idx % 2 === 0;
+      half.appendChild(buildPoint(point, orientation, stripeDark));
+    });
+    return half;
+  }
+
+  const board = document.createElement("div");
+  board.className = "bg-board";
+
+  const topRow = document.createElement("div");
+  topRow.className = "board-row top";
+  topRow.appendChild(buildHalf(topLeft, "down"));
+
+  const bar = document.createElement("button");
+  const barSelected = state.selectedFrom === 0;
+  bar.className = `board-bar${barSelected ? " selected" : ""}`;
+  bar.disabled = state.submittingMove || state.position.turn !== HUMAN_SIDE;
+  bar.title = "Select checker from bar";
+  bar.innerHTML = `
+    <div class="bar-label">BAR</div>
+    <div class="bar-counts">W ${boardPosition.bar_white} / B ${boardPosition.bar_black}</div>
+    <div class="bar-stack">
+      ${renderCheckers("white", boardPosition.bar_white)}
+      ${renderCheckers("black", boardPosition.bar_black)}
+    </div>
+  `;
+  bar.addEventListener("click", () => onPointClick(0));
+  topRow.appendChild(bar);
+
+  topRow.appendChild(buildHalf(topRight, "down"));
+
+  const bottomRow = document.createElement("div");
+  bottomRow.className = "board-row bottom";
+  bottomRow.appendChild(buildHalf(bottomLeft, "up"));
+  bottomRow.appendChild(document.createElement("div")).className = "board-bar-spacer";
+  bottomRow.appendChild(buildHalf(bottomRight, "up"));
+
+  board.appendChild(topRow);
+  board.appendChild(bottomRow);
+  el.boardGrid.innerHTML = "";
+  el.boardGrid.appendChild(board);
+
+  const canBearOffBlack =
+    state.position.turn === HUMAN_SIDE &&
+    state.selectedFrom !== null &&
+    validTargets.has(25) &&
+    !state.submittingMove;
+
+  const off = document.createElement("div");
+  off.className = "off-trays-inner";
+  off.innerHTML = `
+    <button class="off-tray" disabled>
+      <div class="off-title">White Off (${boardPosition.off_white})</div>
+      <div class="off-stack">${renderOffCheckers("white", boardPosition.off_white)}</div>
+    </button>
+    <button class="off-tray" id="blackOffBtn" ${canBearOffBlack ? "" : "disabled"}>
+      <div class="off-title">Black Off (${boardPosition.off_black})</div>
+      <div class="off-stack">${renderOffCheckers("black", boardPosition.off_black)}</div>
+    </button>
+  `;
+  el.offTrays.innerHTML = "";
+  el.offTrays.appendChild(off);
+
+  const blackOffBtn = document.getElementById("blackOffBtn");
+  if (blackOffBtn) {
+    blackOffBtn.addEventListener("click", () => chooseDestination(25));
+  }
+}
+
+function render() {
+  renderStatus();
+  renderBoard();
+}
+
+async function refreshLegalMoves() {
+  if (!state.position) {
+    state.legalMoves = [];
+    state.legalMovesLoaded = false;
+    render();
+    return;
+  }
+
+  state.legalMovesLoaded = false;
+  render();
+
   try {
-    const opening = rollOpeningSequence();
-    const position = {
-      points: [-2, 0, 0, 0, 0, 5, 0, 3, 0, 0, 0, -5, 5, 0, 0, 0, -3, 0, -5, 0, 0, 0, 0, 2],
-      bar_white: 0,
-      bar_black: 0,
-      off_white: 0,
-      off_black: 0,
-      turn: opening.turn,
-      cube_value: 1,
-      dice: opening.dice,
-    };
+    const data = await api("/legal-moves", {
+      method: "POST",
+      body: JSON.stringify({ position: state.position }),
+    });
+    state.legalMoves = data.moves || [];
+    state.legalMovesLoaded = true;
+    render();
+
+    if (state.position.turn === HUMAN_SIDE && state.legalMoves.length === 0 && !state.submittingMove) {
+      notify("No legal move for black. Passing turn.");
+      await submitPassMove();
+    }
+  } catch (err) {
+    state.legalMoves = [];
+    state.legalMovesLoaded = false;
+    render();
+    notify(err.message, true);
+  }
+}
+
+async function createNewSession() {
+  try {
     const created = await api("/sessions", {
       method: "POST",
-      body: JSON.stringify({ initial_position: position, profile_id: currentProfileId() }),
+      body: JSON.stringify({ initial_position: startingPosition(), profile_id: "default" }),
     });
     state.sessionId = created.session_id;
     state.position = created.current_position;
     state.moveSteps = [];
     state.selectedFrom = null;
-    state.legalMoves = [];
-    state.legalMovesLoaded = false;
     state.submittingMove = false;
-    state.moveLog = [];
-    state.sessionTurns = [];
-    state.lastReplay = null;
-    resetAnimationState();
-    clearMoveHighlight(false);
-    setSessionStatusLabel(created.status, created.move_count);
-    refreshButtons();
-    renderBoard();
-    renderMoveBuilder();
-    renderMoveLog();
-    renderTurnReplayPicker();
-    el.die1.value = String(created.current_position.dice[0]);
-    el.die2.value = String(created.current_position.dice[1]);
-    await refreshLegalMoves(true);
-    await autoAdvanceToHumanTurn();
-    notify("Session created and ready.");
-    await loadTrainingSummary();
-    await loadAnalysisJobs();
-    await loadSessionList();
+    notify("New game started.");
+    render();
+    await refreshLegalMoves();
+    await autoAdvanceWhiteTurns();
   } catch (err) {
     notify(err.message, true);
   }
 }
 
-async function loadLegalMoves() {
-  await refreshLegalMoves(false);
+async function loadSession(sessionId) {
+  try {
+    const session = await api(`/sessions/${sessionId}`);
+    if (session.status !== "active") {
+      await createNewSession();
+      return;
+    }
+    state.sessionId = session.session_id;
+    state.position = session.current_position;
+    state.moveSteps = [];
+    state.selectedFrom = null;
+    state.submittingMove = false;
+    notify(`Resumed session #${session.session_id}.`);
+    render();
+    await refreshLegalMoves();
+    await autoAdvanceWhiteTurns();
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
+async function ensureSession() {
+  try {
+    const sessions = await api("/sessions?profile_id=default&status=active");
+    const active = Array.isArray(sessions.sessions) ? sessions.sessions : [];
+    if (active.length > 0) {
+      await loadSession(active[0].session_id);
+      return;
+    }
+    await createNewSession();
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
+async function autoAdvanceWhiteTurns() {
+  if (!state.sessionId || !state.position) return;
+  let safety = 0;
+  const playedNotations = [];
+
+  while (state.position && state.position.turn === "white" && safety < 12) {
+    const ai = await api(`/sessions/${state.sessionId}/ai-turn`, {
+      method: "POST",
+      body: JSON.stringify({ apply_move: true }),
+    });
+    if (!ai.current_position) {
+      throw new Error("AI turn returned no current position");
+    }
+    playedNotations.push(ai.selected_play?.notation || ai.selected_move?.notation || "pass");
+    state.position = ai.current_position;
+    state.moveSteps = [];
+    state.selectedFrom = null;
+    safety += 1;
+  }
+
+  if (safety >= 12) {
+    throw new Error("AI auto-advance safety limit reached");
+  }
+
+  await refreshLegalMoves();
+  if (playedNotations.length > 0) {
+    notify(`AI played: ${playedNotations.join(" | ")}`);
+  }
+}
+
+async function submitPassMove() {
+  if (!state.sessionId || !state.position || state.position.turn !== HUMAN_SIDE) return;
+
+  state.submittingMove = true;
+  render();
+  try {
+    const played = await api(`/sessions/${state.sessionId}/play-turn`, {
+      method: "POST",
+      body: JSON.stringify({
+        played_move: {
+          notation: "pass",
+          steps: [{ from_point: 0, to_point: 0 }],
+        },
+        record_training: false,
+        auto_advance_to_human: true,
+      }),
+    });
+    state.position = played.current_position;
+    state.moveSteps = [];
+    state.selectedFrom = null;
+    notify("Black passed. White played automatically.");
+    await refreshLegalMoves();
+  } catch (err) {
+    notify(err.message, true);
+  } finally {
+    state.submittingMove = false;
+    render();
+  }
 }
 
 async function submitMove() {
-  if (!state.sessionId || state.moveSteps.length === 0 || !state.position || state.submittingMove) return;
+  if (!state.sessionId || !state.position || state.position.turn !== HUMAN_SIDE) return;
+  if (state.submittingMove || state.moveSteps.length === 0) return;
+
   state.submittingMove = true;
-  renderMoveBuilder();
-  refreshButtons();
+  render();
+
   try {
-    const startingPosition = clonePosition(state.position);
-    const diceLabel = state.position ? `${state.position.dice[0]}-${state.position.dice[1]}` : "";
-    const playedSteps = state.moveSteps.map((s) => ({ from_point: s.from_point, to_point: s.to_point }));
-    const stepSummary = summarizeStepEvents(startingPosition, playedSteps);
-    const notation = playedSteps.map((s) => `${s.from_point}/${s.to_point}`).join(" ");
+    const playedSteps = state.moveSteps.map((step) => ({
+      from_point: step.from_point,
+      to_point: step.to_point,
+    }));
+    const notation = playedSteps.map((step) => `${step.from_point}/${step.to_point}`).join(" ");
+
     const played = await api(`/sessions/${state.sessionId}/play-turn`, {
       method: "POST",
       body: JSON.stringify({
         played_move: { notation, steps: playedSteps },
         record_training: true,
+        auto_advance_to_human: true,
       }),
     });
-    const humanPosition = played.human_position || played.current_position;
-    const autoAiTurns = Array.isArray(played.auto_ai_turns) ? played.auto_ai_turns : [];
+
+    state.position = played.current_position;
     state.moveSteps = [];
     state.selectedFrom = null;
-    state.legalMoves = [];
-    state.legalMovesLoaded = false;
-    state.moveLog.push({
-      actor: "You",
-      notation,
-      dice: diceLabel,
-      note: `${played.played_move.quality} ${played.played_move.delta_vs_best.toFixed(3)}${stepSummary.hits ? ` hits:${stepSummary.hits}` : ""}`,
-    });
-    renderMoveBuilder();
-    setLastReplay(startingPosition, playedSteps, humanPosition);
-    await animateMoveReplay(startingPosition, playedSteps, humanPosition);
-    setSessionStatusLabel("active", Number(played.move_count) || 0);
-    setMoveHighlightFromSteps(playedSteps);
-    const summaryText = formatMoveAnalysisSummary(played.analysis);
-    notify(stepSummary.hits ? `${summaryText}\nHits: ${stepSummary.hits}` : summaryText);
+    const aiReplies = Array.isArray(played.auto_ai_turns) ? played.auto_ai_turns : [];
+    const aiSummary = aiReplies.length
+      ? `\nAI replies: ${aiReplies.map((turn) => turn.selected_play?.notation || turn.selected_move?.notation || "pass").join(" | ")}`
+      : "";
 
-    for (const aiTurn of autoAiTurns) {
-      if (!aiTurn || !aiTurn.current_position) {
-        continue;
-      }
-      const aiStartPosition = clonePosition(state.position);
-      const aiSteps = aiTurn.selected_play?.notation === "pass" ? [] : (aiTurn.selected_play?.steps || []);
-      const aiStepSummary = summarizeStepEvents(aiStartPosition, aiSteps);
-      const aiNotation = aiTurn.selected_play?.notation || aiTurn.selected_move?.notation || "pass";
-      const aiDice = aiStartPosition?.dice ? `${aiStartPosition.dice[0]}-${aiStartPosition.dice[1]}` : "";
-      state.moveLog.push({
-        actor: "AI",
-        notation: aiNotation,
-        dice: aiDice,
-        note: `${aiTurn.selected_move.quality} ${aiTurn.selected_move.delta_vs_best.toFixed(3)}${aiStepSummary.hits ? ` hits:${aiStepSummary.hits}` : ""}`,
-      });
-      renderMoveLog();
-      setLastReplay(aiStartPosition, aiSteps, aiTurn.current_position);
-      await animateMoveReplay(aiStartPosition, aiSteps, aiTurn.current_position);
-      setSessionStatusLabel("active", Number(aiTurn.move_count) || Number(played.move_count) || 0);
-      setMoveHighlightFromSteps(aiSteps);
-    }
-
-    renderMoveLog();
-    await refreshLegalMoves(true);
-    await loadSessionTurns(state.sessionId);
-    await loadTrainingSummary();
-    await loadAnalysisJobs();
+    notify(`${formatMoveAnalysisSummary(played.analysis)}${aiSummary}`);
+    await refreshLegalMoves();
   } catch (err) {
     notify(err.message, true);
   } finally {
     state.submittingMove = false;
-    renderMoveBuilder();
-    refreshButtons();
+    render();
   }
 }
 
-async function autoAdvanceToHumanTurn() {
-  if (!state.sessionId || !state.position) return;
-  let safety = 0;
-  while (state.sessionId && state.position && state.position.turn !== HUMAN_SIDE && safety < 12) {
-    const beforeTurn = state.position.turn;
-    const beforeDice = `${state.position.dice[0]}-${state.position.dice[1]}`;
-    const progressed = await aiTurn(false);
-    if (!progressed) {
-      break;
-    }
-    safety += 1;
-    if (!state.position) break;
-    const afterDice = `${state.position.dice[0]}-${state.position.dice[1]}`;
-    if (state.position.turn === beforeTurn && afterDice === beforeDice) {
-      notify("AI turn did not advance state. Use Resume and report this state.", true);
-      break;
-    }
-  }
-  if (safety >= 12) {
-    notify("Auto-advance safety limit reached. Use Resume and report this state.", true);
-  }
-}
+async function showTip() {
+  if (!state.sessionId || !state.position || state.position.turn !== HUMAN_SIDE) return;
 
-async function aiTurn(showNotify = true) {
-  if (!state.sessionId || !state.position) return false;
-  if (state.position.turn === HUMAN_SIDE) return false;
-  try {
-    const startingPosition = clonePosition(state.position);
-    const played = await api(`/sessions/${state.sessionId}/ai-turn`, {
-      method: "POST",
-      body: JSON.stringify({ apply_move: true }),
-    });
-    const aiSteps = played.selected_play?.notation === "pass" ? [] : (played.selected_play?.steps || []);
-    const stepSummary = summarizeStepEvents(startingPosition, aiSteps);
-    state.moveSteps = [];
-    state.selectedFrom = null;
-    state.legalMoves = [];
-    state.legalMovesLoaded = false;
-    state.moveLog.push({
-      actor: "AI",
-      notation: played.selected_play?.notation || played.selected_move.notation,
-      dice: played.selected_move?.dice ? `${played.selected_move.dice[0]}-${played.selected_move.dice[1]}` : "",
-      note: `${played.selected_move.quality} ${played.selected_move.delta_vs_best.toFixed(3)}${stepSummary.hits ? ` hits:${stepSummary.hits}` : ""}`,
-    });
-    renderMoveBuilder();
-    renderMoveLog();
-    setLastReplay(startingPosition, aiSteps, played.current_position);
-    await animateMoveReplay(startingPosition, aiSteps, played.current_position);
-    setSessionStatusLabel("active", played.move_count);
-    setMoveHighlightFromSteps(aiSteps);
-    await refreshLegalMoves(true);
-    await loadSessionTurns(state.sessionId);
-    if (showNotify) {
-      notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
-    }
-    return true;
-  } catch (err) {
-    notify(err.message, true);
-    return false;
-  }
-}
-
-async function aiSuggest() {
-  if (!state.sessionId || !state.position || state.animating) return;
   try {
     const suggested = await api(`/sessions/${state.sessionId}/ai-turn`, {
       method: "POST",
       body: JSON.stringify({ apply_move: false }),
     });
     const suggestion = suggested.selected_play;
-    state.moveSteps = suggestion.steps.map((step) => ({
-      from_point: step.from_point,
-      to_point: step.to_point,
-    }));
-    state.selectedFrom = null;
-    renderMoveBuilder();
-    renderBoard();
-    notify(
-      `AI suggests: ${suggestion.notation}\nQuality: ${suggested.selected_move.quality} | Equity ${suggested.selected_move.equity.toFixed(3)}`,
-    );
+    const reasons = Array.isArray(suggested.selected_move?.why) ? suggested.selected_move.why.join("; ") : "";
+    notify(`Tip: ${suggestion.notation}\nQuality: ${suggested.selected_move.quality} | Equity ${suggested.selected_move.equity.toFixed(3)}${reasons ? `\nWhy: ${reasons}` : ""}`);
   } catch (err) {
     notify(err.message, true);
   }
 }
 
-async function rollDice() {
-  if (!state.sessionId) return;
-  try {
-    const rolled = await api(`/sessions/${state.sessionId}/roll`, { method: "POST" });
-    state.position = rolled.position;
-    state.moveSteps = [];
-    state.selectedFrom = null;
-    state.lastReplay = null;
-    resetAnimationState();
-    clearMoveHighlight(false);
-    renderMoveBuilder();
-    el.die1.value = String(rolled.dice[0]);
-    el.die2.value = String(rolled.dice[1]);
-    await refreshLegalMoves(true);
-    notify(`Rolled ${rolled.dice[0]}-${rolled.dice[1]}.`);
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
+el.newGameBtn.addEventListener("click", createNewSession);
+el.tipBtn.addEventListener("click", showTip);
 
-async function closeSession() {
-  if (!state.sessionId) return;
-  try {
-    const closed = await api(`/sessions/${state.sessionId}/close`, { method: "POST" });
-    notify(`Session #${closed.session_id} closed.`);
-    state.sessionId = null;
-    state.position = null;
-    state.legalMoves = [];
-    state.legalMovesLoaded = false;
-    state.moveSteps = [];
-    state.selectedFrom = null;
-    state.moveLog = [];
-    state.sessionTurns = [];
-    state.lastReplay = null;
-    resetAnimationState();
-    clearMoveHighlight(false);
-    setSessionStatusLabel("completed", 0);
-    refreshButtons();
-    renderBoard();
-    renderMoveBuilder();
-    renderMoveLog();
-    renderTurnReplayPicker();
-    renderLegalMoves();
-    el.cubeFeedback.textContent = "No cube decision checked yet.";
-    await loadAnalysisJobs();
-    await loadSessionList();
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-async function checkCubeDecision() {
-  if (!state.position) return;
-  try {
-    const result = await api("/cube/decision", {
-      method: "POST",
-      body: JSON.stringify({
-        position: state.position,
-        action: el.cubeAction.value,
-      }),
-    });
-    el.cubeFeedback.textContent = JSON.stringify(result, null, 2);
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-function chooseFromBar() {
-  if (!state.position) return;
-  chooseSource(state.position.turn === "white" ? 25 : 0);
-}
-
-function chooseToOff() {
-  if (!state.position || state.selectedFrom === null) return;
-  const to = state.position.turn === "white" ? 0 : 25;
-  chooseDestination(to);
-}
-
-function clearMove() {
-  state.moveSteps = [];
-  state.selectedFrom = null;
-  clearDragState();
-  clearMoveHighlight(false);
-  renderMoveBuilder();
-  renderBoard();
-}
-
-async function replayLastMove() {
-  if (!state.lastReplay || state.animating) {
-    return;
-  }
-  state.moveSteps = [];
-  state.selectedFrom = null;
-  clearDragState();
-  renderMoveBuilder();
-  await animateMoveReplay(
-    state.lastReplay.startPosition,
-    state.lastReplay.steps,
-    state.lastReplay.finalPosition,
-  );
-  setMoveHighlightFromSteps(state.lastReplay.steps);
-}
-
-function projectPositionAfterSteps(startPosition, steps) {
-  let preview = clonePosition(startPosition);
-  const side = startPosition.turn;
-  for (const step of steps) {
-    preview = applyAnimatedStep(preview, step, side).position;
-  }
-  return preview;
-}
-
-async function replaySelectedTurn() {
-  if (!state.sessionId || state.animating) return;
-  const selectedTurnId = Number(el.turnReplayPicker.value);
-  if (!selectedTurnId) {
-    notify("Select a turn to replay.", true);
-    return;
-  }
-  const restorePosition = state.position ? clonePosition(state.position) : null;
-  try {
-    const replay = await api(`/sessions/${state.sessionId}/turns/${selectedTurnId}/replay`);
-    const steps = replay.played_move.steps || [];
-    const endPosition = projectPositionAfterSteps(replay.previous_position, steps);
-    await animateMoveReplay(replay.previous_position, steps, endPosition);
-    setMoveHighlightFromSteps(steps);
-    if (restorePosition) {
-      state.position = restorePosition;
-      renderBoard();
-    }
-    notify(`Replayed turn ${selectedTurnId}: ${replay.played_move.notation}`);
-  } catch (err) {
-    if (restorePosition) {
-      state.position = restorePosition;
-      renderBoard();
-    }
-    notify(err.message, true);
-  }
-}
-
-function undoMoveStep() {
-  if (state.moveSteps.length === 0) {
-    return;
-  }
-  state.moveSteps.pop();
-  state.selectedFrom = null;
-  clearDragState();
-  renderMoveBuilder();
-  renderBoard();
-}
-
-async function loadSessionReport() {
-  if (!state.sessionId) return;
-  try {
-    const report = await api(`/sessions/${state.sessionId}/report?top_n=5`);
-    notify(JSON.stringify(report, null, 2));
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-async function loadTurnTimeline() {
-  if (!state.sessionId) return;
-  try {
-    const actor = currentTurnActorFilter();
-    const actorQuery = actor === "all" ? "" : `&actor=${encodeURIComponent(actor)}`;
-    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=${currentTimelineLimit()}${actorQuery}`);
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(body || `HTTP ${response.status}`);
-    }
-    const markdown = await response.text();
-    notify(markdown);
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-async function downloadTurnTimeline() {
-  if (!state.sessionId) return;
-  try {
-    const actor = currentTurnActorFilter();
-    const actorQuery = actor === "all" ? "" : `&actor=${encodeURIComponent(actor)}`;
-    const response = await fetch(`/sessions/${state.sessionId}/turns/markdown?limit=${currentTimelineLimit()}${actorQuery}`);
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(body || `HTTP ${response.status}`);
-    }
-    const markdown = await response.text();
-    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `gammondator-session-${state.sessionId}-timeline.md`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-    notify(`Downloaded timeline for session #${state.sessionId}.`);
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-function renderDrillStatus() {
-  if (!state.currentDrill) {
-    el.drillStatus.textContent = "No drill loaded.";
-    el.submitDrillBtn.disabled = true;
-    return;
-  }
-  el.drillStatus.textContent = JSON.stringify(
-    {
-      review_id: state.currentDrill.review_id,
-      leak_category: state.currentDrill.leak_category,
-      equity_loss: state.currentDrill.equity_loss,
-      played_notation: state.currentDrill.played_notation,
-    },
-    null,
-    2,
-  );
-  el.submitDrillBtn.disabled = false;
-}
-
-async function loadDrill() {
-  try {
-    const data = await api(
-      `/training/drills?limit=1&profile_id=${encodeURIComponent(currentProfileId())}`,
-    );
-    if (!data.drills.length) {
-      notify("No drills available yet. Record some rated moves first.", true);
-      state.currentDrill = null;
-      renderDrillStatus();
-      return;
-    }
-    state.currentDrill = data.drills[0];
-    state.position = state.currentDrill.position;
-    state.moveSteps = [];
-    state.selectedFrom = null;
-    state.legalMoves = [];
-    state.legalMovesLoaded = false;
-    state.moveLog = [];
-    state.sessionTurns = [];
-    state.lastReplay = null;
-    resetAnimationState();
-    clearMoveHighlight(false);
-    renderMoveBuilder();
-    renderMoveLog();
-    renderTurnReplayPicker();
-    await refreshLegalMoves(true);
-    renderDrillStatus();
-    notify("Drill loaded. Enter your best move notation and submit.");
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-async function submitDrillAttempt() {
-  if (!state.currentDrill) return;
-  const chosen = el.drillAnswer.value.trim();
-  if (!chosen) {
-    notify("Enter a move notation before submitting.", true);
-    return;
-  }
-  try {
-    const result = await api("/training/drills/attempt", {
-      method: "POST",
-      body: JSON.stringify({
-        review_id: state.currentDrill.review_id,
-        chosen_notation: chosen,
-        profile_id: currentProfileId(),
-      }),
-    });
-    notify(JSON.stringify(result, null, 2));
-    await loadTrainingSummary();
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-async function queueCurrentPositionAnalysis() {
-  if (!state.position) return;
-  try {
-    const created = await api("/analysis-jobs", {
-      method: "POST",
-      body: JSON.stringify({
-        profile_id: currentProfileId(),
-        analysis_mode: el.analysisMode.value,
-        position: state.position,
-      }),
-    });
-    notify(`Queued analysis job #${created.job_id}.`);
-    await loadAnalysisJobs();
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-async function runNextAnalysisJob() {
-  try {
-    const ran = await api(
-      `/analysis-jobs/run-next?profile_id=${encodeURIComponent(currentProfileId())}`,
-      { method: "POST" },
-    );
-    notify(`Ran analysis job #${ran.job_id} (${ran.status}).`);
-    await loadAnalysisJobs();
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-async function retryLatestJob() {
-  try {
-    const jobs = await api(`/analysis-jobs?profile_id=${encodeURIComponent(currentProfileId())}&limit=1`);
-    if (!jobs.jobs.length) {
-      notify("No jobs available to retry.", true);
-      return;
-    }
-    const latest = jobs.jobs[0];
-    const retried = await api(`/analysis-jobs/${latest.job_id}/retry`, { method: "POST" });
-    notify(`Job #${retried.job_id} reset to pending.`);
-    await loadAnalysisJobs();
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-async function cleanupFinishedJobs() {
-  try {
-    const cleaned = await api(
-      `/analysis-jobs/cleanup?profile_id=${encodeURIComponent(currentProfileId())}`,
-      { method: "POST" },
-    );
-    notify(`Cleaned ${cleaned.deleted} finished jobs.`);
-    await loadAnalysisJobs();
-  } catch (err) {
-    notify(err.message, true);
-  }
-}
-
-el.newSessionBtn.addEventListener("click", newSession);
-el.loadLegalBtn.addEventListener("click", loadLegalMoves);
-el.submitMoveBtn.addEventListener("click", submitMove);
-el.aiTurnBtn.addEventListener("click", aiTurn);
-el.aiSuggestBtn.addEventListener("click", aiSuggest);
-el.rollBtn.addEventListener("click", rollDice);
-el.fromBarBtn.addEventListener("click", chooseFromBar);
-el.toOffBtn.addEventListener("click", chooseToOff);
-el.undoStepBtn.addEventListener("click", undoMoveStep);
-el.clearMoveBtn.addEventListener("click", clearMove);
-el.replayMoveBtn.addEventListener("click", replayLastMove);
-el.replayTurnBtn.addEventListener("click", replaySelectedTurn);
-el.sessionReportBtn.addEventListener("click", loadSessionReport);
-el.turnTimelineBtn.addEventListener("click", loadTurnTimeline);
-el.downloadTimelineBtn.addEventListener("click", downloadTurnTimeline);
-el.closeSessionBtn.addEventListener("click", closeSession);
-el.refreshSessionsBtn.addEventListener("click", loadSessionList);
-el.resumeSessionBtn.addEventListener("click", resumeSelectedSession);
-el.cubeCheckBtn.addEventListener("click", checkCubeDecision);
-el.loadDrillBtn.addEventListener("click", loadDrill);
-el.submitDrillBtn.addEventListener("click", submitDrillAttempt);
-el.queueAnalysisBtn.addEventListener("click", queueCurrentPositionAnalysis);
-el.runNextAnalysisBtn.addEventListener("click", runNextAnalysisJob);
-el.retryLatestJobBtn.addEventListener("click", retryLatestJob);
-el.cleanupJobsBtn.addEventListener("click", cleanupFinishedJobs);
-el.profileId.addEventListener("change", async () => {
-  savePreferences();
-  await loadTrainingSummary();
-  await loadAnalysisJobs();
-  await loadSessionList();
-});
-el.animationMs.addEventListener("change", savePreferences);
-el.timelineLimit.addEventListener("change", async () => {
-  savePreferences();
-  if (state.sessionId) {
-    await loadSessionTurns(state.sessionId);
-  }
-});
-el.turnActorFilter.addEventListener("change", async () => {
-  savePreferences();
-  if (state.sessionId) {
-    await loadSessionTurns(state.sessionId);
-  }
-});
-el.toOffBtn.addEventListener("dragover", onOffDragOver);
-el.toOffBtn.addEventListener("drop", onOffDrop);
-el.toOffBtn.addEventListener("touchend", (event) => {
-  if (!state.touchDragging) return;
-  event.preventDefault();
-  onOffDrop(event);
-}, { passive: false });
-
-window.addEventListener("keydown", (event) => {
-  const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
-  const typing = tag === "input" || tag === "textarea" || tag === "select";
-  if (typing) {
-    return;
-  }
-
-  if (event.key === "Enter" && !el.submitMoveBtn.disabled) {
-    event.preventDefault();
-    submitMove();
-    return;
-  }
-  if ((event.key === "a" || event.key === "A") && !el.aiSuggestBtn.disabled) {
-    event.preventDefault();
-    aiSuggest();
-    return;
-  }
-  if ((event.key === "r" || event.key === "R") && !el.replayMoveBtn.disabled) {
-    event.preventDefault();
-    replayLastMove();
-    return;
-  }
-  if ((event.key === "p" || event.key === "P") && !el.replayTurnBtn.disabled) {
-    event.preventDefault();
-    replaySelectedTurn();
-    return;
-  }
-  if ((event.key === "t" || event.key === "T") && !el.turnTimelineBtn.disabled) {
-    event.preventDefault();
-    loadTurnTimeline();
-    return;
-  }
-  if ((event.key === "d" || event.key === "D") && !el.downloadTimelineBtn.disabled) {
-    event.preventDefault();
-    downloadTurnTimeline();
-    return;
-  }
-  if (event.key === "Backspace" && !el.undoStepBtn.disabled) {
-    event.preventDefault();
-    undoMoveStep();
-    return;
-  }
-  if (event.key === "Escape" && !el.clearMoveBtn.disabled) {
-    event.preventDefault();
-    clearMove();
-  }
-});
-
-async function initializeApp() {
-  refreshButtons();
-  loadPreferences();
-  renderBoard();
-  renderMoveBuilder();
-  renderMoveLog();
-  renderTurnReplayPicker();
-  renderDrillStatus();
-  await loadTrainingSummary();
-  await loadAnalysisJobs();
-  const sessions = await loadSessionList();
-  if (!state.sessionId && sessions.length) {
-    el.sessionPicker.value = String(sessions[0].session_id);
-    await resumeSelectedSession();
-  }
-}
-
-initializeApp();
+ensureSession();

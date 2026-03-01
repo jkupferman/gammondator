@@ -258,6 +258,40 @@ def test_session_ai_turn_forced_pass_advances_turn() -> None:
     assert data["current_position"]["dice"] == [4, 2]
 
 
+def test_play_turn_forced_pass_advances_and_autoplays_ai() -> None:
+    points = [0] * 24
+    points[0] = 2
+    points[1] = 2
+    blocked_black = {
+        "points": points,
+        "bar_white": 0,
+        "bar_black": 1,
+        "off_white": 11,
+        "off_black": 14,
+        "turn": "black",
+        "cube_value": 1,
+        "dice": [1, 2],
+    }
+    create_response = client.post("/sessions", json={"initial_position": blocked_black})
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+
+    response = client.post(
+        f"/sessions/{session_id}/play-turn",
+        json={
+            "played_move": {"notation": "pass", "steps": [{"from_point": 0, "to_point": 0}]},
+            "next_dice": [4, 2],
+            "record_training": False,
+            "auto_advance_to_human": True,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["analysis"]["played_move"]["notation"] == "pass"
+    assert payload["human_position"]["turn"] == "white"
+    assert payload["current_position"]["turn"] == "black"
+
+
 def test_session_roll_endpoint() -> None:
     create_response = client.post(
         "/sessions",

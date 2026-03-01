@@ -767,9 +767,63 @@ def play_session_turn_endpoint(
 
     try:
         next_dice = payload.next_dice or (random.randint(1, 6), random.randint(1, 6))
-        analysis = _rate_played_move(
-            RatePlayedMoveRequest(position=current_position, played_move=payload.played_move)
-        )
+        legal_moves = generate_legal_moves(current_position)
+        if not legal_moves:
+            if payload.played_move.notation != "pass":
+                raise HTTPException(status_code=400, detail="no legal moves available; use pass move")
+            pass_move = Move(notation="pass", steps=[MoveStep(from_point=0, to_point=0)])
+            pass_score = MoveScore(
+                notation="pass",
+                equity=0.0,
+                delta_vs_best=0.0,
+                quality="excellent",
+                why=["Forced pass: no legal moves available."],
+            )
+            analysis = AnalyzeMoveResponse(
+                best_move=pass_score,
+                played_move=pass_score,
+                top_moves=[pass_score],
+            )
+            next_position = current_position.model_copy(
+                update={
+                    "turn": "black" if current_position.turn == "white" else "white",
+                    "dice": next_dice,
+                }
+            )
+            advanced = session_store.apply_turn(
+                session_id=session_id,
+                previous_position=current_position,
+                new_position=next_position,
+                analysis=analysis,
+                played_move=pass_move,
+                actor="human",
+            )
+            human_position = advanced["current_position"]
+            auto_ai_turns: list[SessionAIMoveResponse] = []
+            final_position = human_position
+            final_move_count = int(advanced["move_count"])
+            if payload.auto_advance_to_human:
+                safety = 0
+                while final_position.turn != "black" and safety < 12:
+                    ai_outcome = _apply_ai_turn_once(session_id=session_id, current_position=final_position)
+                    if ai_outcome.current_position is None:
+                        break
+                    auto_ai_turns.append(ai_outcome)
+                    final_position = ai_outcome.current_position
+                    final_move_count = int(ai_outcome.move_count)
+                    safety += 1
+                if safety >= 12:
+                    raise HTTPException(status_code=500, detail="auto-advance safety limit reached")
+            return SessionPlayTurnResponse(
+                session_id=int(advanced["session_id"]),
+                move_count=final_move_count,
+                analysis=analysis,
+                human_position=human_position,
+                auto_ai_turns=auto_ai_turns,
+                current_position=final_position,
+            )
+
+        analysis = _rate_played_move(RatePlayedMoveRequest(position=current_position, played_move=payload.played_move))
         if payload.record_training:
             training_store.record_review(
                 current_position,

@@ -3,149 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gammondator Trainer</title>
+  <title>Gammondator</title>
   <link rel="stylesheet" href="/web/styles.css" />
 </head>
 <body>
-  <div class="bg-pattern"></div>
   <main class="app-shell">
     <header class="topbar">
       <h1>Gammondator</h1>
-      <p>Backgammon training board MVP</p>
+      <div class="actions">
+        <button id="newGameBtn">New Game</button>
+        <button id="tipBtn">Tip</button>
+      </div>
     </header>
 
-    <section class="panel controls">
-      <div class="row">
-        <button id="newSessionBtn">New Session</button>
-        <button id="refreshSessionsBtn">Refresh Sessions</button>
-        <select id="sessionPicker"></select>
-        <button id="resumeSessionBtn">Resume</button>
-        <button id="loadDrillBtn">Load Drill</button>
-      </div>
-      <div class="row">
-        <button id="loadLegalBtn" disabled>Load Legal Moves</button>
-        <button id="aiTurnBtn" disabled>AI Turn</button>
-        <button id="aiSuggestBtn" disabled>AI Suggest</button>
-        <button id="rollBtn" disabled>Roll</button>
-        <button id="sessionReportBtn" disabled>Session Report</button>
-        <button id="turnTimelineBtn" disabled>Turn Timeline</button>
-        <button id="downloadTimelineBtn" disabled>Download Timeline</button>
-        <button id="closeSessionBtn" disabled>Close Session</button>
-      </div>
-      <details class="advanced-controls">
-        <summary>Advanced Controls</summary>
-        <label>Profile:</label>
-        <input id="profileId" type="text" value="default" />
-        <label>Anim ms:</label>
-        <input id="animationMs" type="number" min="120" max="900" step="20" value="320" />
-        <label>Timeline Limit:</label>
-        <input id="timelineLimit" type="number" min="20" max="1000" step="10" value="300" />
-        <select id="turnActorFilter">
-          <option value="all">All Turns</option>
-          <option value="human">Your Turns</option>
-          <option value="ai">AI Turns</option>
-        </select>
-        <label>Dice:</label>
-        <input id="die1" type="number" min="1" max="6" value="6" readonly />
-        <input id="die2" type="number" min="1" max="6" value="1" readonly />
-        <small>Opening roll is automatic on New Session.</small>
-      </details>
-      <div class="row">
-        <small>New Session auto-rolls opening dice. White (AI) auto-plays; Black waits for your move.</small>
-      </div>
-      <div class="row"><strong id="sessionStatus">No session</strong></div>
+    <section class="status-bar">
+      <span id="sessionStatus">Session: -</span>
+      <span id="turnStatus">Turn: -</span>
+      <span id="diceStatus">Dice: -</span>
     </section>
 
-    <section class="panel board-panel">
-      <div class="board-head">
-        <h2>Board</h2>
-        <span id="turnLabel">Turn: -</span>
-        <span id="animationStatus">Idle</span>
-      </div>
+    <section class="board-panel">
       <div class="board-grid" id="boardGrid"></div>
       <div class="off-trays" id="offTrays"></div>
-      <div class="board-meta">
-        <span id="barOffLabel">Bar/Off: -</span>
-        <span id="cubeLabel">Cube: -</span>
-      </div>
+      <p class="move-status" id="moveStatus">Select a checker to move.</p>
     </section>
 
-    <section class="panel move-builder">
-      <h2>Move Builder</h2>
-      <div class="row">
-        <button id="fromBarBtn" disabled>From Bar</button>
-        <button id="toOffBtn" disabled>To Off</button>
-        <button id="undoStepBtn" disabled>Undo Step</button>
-        <button id="clearMoveBtn" disabled>Clear</button>
-        <button id="replayMoveBtn" disabled>Replay Last Move</button>
-      </div>
-      <p>Click/tap source then destination, or drag a checker to its target.</p>
-      <p>Shortcuts: Enter = submit, A = AI suggest, R = replay last move, P = replay selected turn, T = timeline, D = download timeline, Backspace = undo, Esc = clear.</p>
-      <pre id="currentMove">No move selected</pre>
-      <button id="submitMoveBtn" disabled>Submit Move</button>
-    </section>
-
-    <section class="panel split">
-      <div>
-        <h2>Legal Moves</h2>
-        <ul id="legalMoves"></ul>
-      </div>
-      <div>
-        <h2>Feedback</h2>
-        <pre id="feedback">No feedback yet.</pre>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2>Training Summary</h2>
-      <pre id="trainingSummary">No training data loaded.</pre>
-    </section>
-
-    <section class="panel">
-      <h2>Move Log</h2>
-      <div class="row">
-        <select id="turnReplayPicker"></select>
-        <button id="replayTurnBtn" disabled>Replay Turn</button>
-      </div>
-      <pre id="moveLog">No moves yet.</pre>
-    </section>
-
-    <section class="panel">
-      <h2>Cube Trainer</h2>
-      <div class="row">
-        <select id="cubeAction">
-          <option value="nodouble">No Double</option>
-          <option value="double">Double</option>
-          <option value="take">Take</option>
-          <option value="pass">Pass</option>
-        </select>
-        <button id="cubeCheckBtn" disabled>Check Cube Decision</button>
-      </div>
-      <pre id="cubeFeedback">No cube decision checked yet.</pre>
-    </section>
-
-    <section class="panel">
-      <h2>Analysis Queue</h2>
-      <div class="row">
-        <select id="analysisMode">
-          <option value="standard">Standard</option>
-          <option value="deep">Deep</option>
-        </select>
-        <button id="queueAnalysisBtn" disabled>Queue Current Position</button>
-        <button id="runNextAnalysisBtn">Run Next Job</button>
-        <button id="retryLatestJobBtn">Retry Latest Job</button>
-        <button id="cleanupJobsBtn">Cleanup Finished Jobs</button>
-      </div>
-      <pre id="analysisJobs">No queued jobs shown yet.</pre>
-    </section>
-
-    <section class="panel">
-      <h2>Drill Mode</h2>
-      <pre id="drillStatus">No drill loaded.</pre>
-      <div class="row">
-        <input id="drillAnswer" type="text" placeholder="Enter move notation e.g. 13/7 8/7" />
-        <button id="submitDrillBtn" disabled>Submit Drill Answer</button>
-      </div>
+    <section class="feedback-panel">
+      <h2>Move Feedback</h2>
+      <pre id="feedback">Starting up...</pre>
     </section>
   </main>
 
