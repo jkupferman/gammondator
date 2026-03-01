@@ -24,6 +24,7 @@ const el = {
   newSessionBtn: document.getElementById("newSessionBtn"),
   loadLegalBtn: document.getElementById("loadLegalBtn"),
   aiTurnBtn: document.getElementById("aiTurnBtn"),
+  aiSuggestBtn: document.getElementById("aiSuggestBtn"),
   rollBtn: document.getElementById("rollBtn"),
   autoAiToggle: document.getElementById("autoAiToggle"),
   sessionReportBtn: document.getElementById("sessionReportBtn"),
@@ -823,6 +824,7 @@ function refreshButtons() {
   const blocked = state.animating;
   el.loadLegalBtn.disabled = !active || blocked;
   el.aiTurnBtn.disabled = !active || blocked;
+  el.aiSuggestBtn.disabled = !active || blocked;
   el.rollBtn.disabled = !active || blocked;
   el.sessionReportBtn.disabled = !active || blocked;
   el.closeSessionBtn.disabled = !active || blocked;
@@ -1062,6 +1064,29 @@ async function aiTurn(showNotify = true) {
     if (showNotify) {
       notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
     }
+  } catch (err) {
+    notify(err.message, true);
+  }
+}
+
+async function aiSuggest() {
+  if (!state.sessionId || !state.position || state.animating) return;
+  try {
+    const suggested = await api(`/sessions/${state.sessionId}/ai-turn`, {
+      method: "POST",
+      body: JSON.stringify({ apply_move: false }),
+    });
+    const suggestion = suggested.selected_play;
+    state.moveSteps = suggestion.steps.map((step) => ({
+      from_point: step.from_point,
+      to_point: step.to_point,
+    }));
+    state.selectedFrom = null;
+    renderMoveBuilder();
+    renderBoard();
+    notify(
+      `AI suggests: ${suggestion.notation}\nQuality: ${suggested.selected_move.quality} | Equity ${suggested.selected_move.equity.toFixed(3)}`,
+    );
   } catch (err) {
     notify(err.message, true);
   }
@@ -1323,6 +1348,7 @@ el.newSessionBtn.addEventListener("click", newSession);
 el.loadLegalBtn.addEventListener("click", loadLegalMoves);
 el.submitMoveBtn.addEventListener("click", submitMove);
 el.aiTurnBtn.addEventListener("click", aiTurn);
+el.aiSuggestBtn.addEventListener("click", aiSuggest);
 el.rollBtn.addEventListener("click", rollDice);
 el.fromBarBtn.addEventListener("click", chooseFromBar);
 el.toOffBtn.addEventListener("click", chooseToOff);
