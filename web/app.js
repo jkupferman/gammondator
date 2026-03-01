@@ -384,10 +384,61 @@ function renderBoard() {
 
   const bar = document.createElement("div");
   bar.className = `board-bar${state.selectedFrom === 25 || state.selectedFrom === 0 ? " selected" : ""}`;
-  bar.innerHTML = `
-    <div class="bar-label">BAR</div>
-    <div class="bar-counts">W ${state.position.bar_white} / B ${state.position.bar_black}</div>
-  `;
+  const barLabel = document.createElement("div");
+  barLabel.className = "bar-label";
+  barLabel.textContent = "BAR";
+  bar.appendChild(barLabel);
+
+  const barCounts = document.createElement("div");
+  barCounts.className = "bar-counts";
+  barCounts.textContent = `W ${state.position.bar_white} / B ${state.position.bar_black}`;
+  bar.appendChild(barCounts);
+
+  const barStack = document.createElement("div");
+  barStack.className = "bar-stack";
+
+  const whiteVisible = Math.min(state.position.bar_white, 2);
+  for (let i = 0; i < whiteVisible; i += 1) {
+    const checker = document.createElement("span");
+    checker.className = "checker white";
+    if (canChooseSource(25)) {
+      checker.classList.add("draggable");
+      checker.dataset.fromPoint = "25";
+      checker.draggable = true;
+      checker.addEventListener("dragstart", onCheckerDragStart);
+      checker.addEventListener("dragend", onCheckerDragEnd);
+      checker.addEventListener("touchstart", onCheckerTouchStart, { passive: true });
+    }
+    barStack.appendChild(checker);
+  }
+  if (state.position.bar_white > 2) {
+    const extra = document.createElement("span");
+    extra.className = "checker-count";
+    extra.textContent = `+${state.position.bar_white - 2}`;
+    barStack.appendChild(extra);
+  }
+
+  const blackVisible = Math.min(state.position.bar_black, 2);
+  for (let i = 0; i < blackVisible; i += 1) {
+    const checker = document.createElement("span");
+    checker.className = "checker black";
+    if (canChooseSource(0)) {
+      checker.classList.add("draggable");
+      checker.dataset.fromPoint = "0";
+      checker.draggable = true;
+      checker.addEventListener("dragstart", onCheckerDragStart);
+      checker.addEventListener("dragend", onCheckerDragEnd);
+      checker.addEventListener("touchstart", onCheckerTouchStart, { passive: true });
+    }
+    barStack.appendChild(checker);
+  }
+  if (state.position.bar_black > 2) {
+    const extra = document.createElement("span");
+    extra.className = "checker-count";
+    extra.textContent = `+${state.position.bar_black - 2}`;
+    barStack.appendChild(extra);
+  }
+  bar.appendChild(barStack);
   bar.title = "Click to select checker from bar";
   bar.addEventListener("click", () => chooseFromBar());
   topRow.appendChild(bar);

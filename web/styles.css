@@ -249,6 +249,16 @@ button.valid-target-btn {
   font-size: 11px;
 }
 
+.bar-stack {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+}
+
 .board-meta {
   display: flex;
   justify-content: space-between;
