@@ -596,6 +596,7 @@ function canChooseSource(point) {
   if (!state.position || state.position.turn !== HUMAN_SIDE) return false;
   const position = workingPosition();
   if (!position) return false;
+  if (position.bar_black > 0 && point !== 0) return false;
 
   if (point >= 1 && point <= 24) {
     const value = position.points[point - 1] || 0;
@@ -611,6 +612,22 @@ function canChooseSource(point) {
     return validSources.size > 0 && validSources.has(point);
   }
   return true;
+}
+
+async function resyncSessionState() {
+  if (!state.sessionId) return;
+  const session = await api(`/sessions/${state.sessionId}`);
+  if (session.status !== "active") {
+    throw new Error(`Session ${state.sessionId} is not active`);
+  }
+  state.position = session.current_position;
+  state.moveSteps = [];
+  state.selectedFrom = null;
+  state.submittingMove = false;
+  state.animating = false;
+  state.transientStatus = null;
+  render();
+  await refreshLegalMoves();
 }
 
 function chooseSource(point) {
@@ -943,6 +960,11 @@ async function submitPassMove() {
     await refreshLegalMoves();
   } catch (err) {
     notify(err.message, true);
+    try {
+      await resyncSessionState();
+    } catch (syncErr) {
+      notify(syncErr.message, true);
+    }
   } finally {
     state.submittingMove = false;
     render();
@@ -996,6 +1018,11 @@ async function submitMove() {
     await refreshLegalMoves();
   } catch (err) {
     notify(err.message, true);
+    try {
+      await resyncSessionState();
+    } catch (syncErr) {
+      notify(syncErr.message, true);
+    }
   } finally {
     state.submittingMove = false;
     render();
