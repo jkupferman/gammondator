@@ -1043,13 +1043,13 @@ async function aiTurn(showNotify = true) {
       method: "POST",
       body: JSON.stringify({ apply_move: true }),
     });
-    const aiSteps = played.selected_move?.steps || [];
+    const aiSteps = played.selected_play?.steps || [];
     const stepSummary = summarizeStepEvents(startingPosition, aiSteps);
     state.moveSteps = [];
     state.selectedFrom = null;
     state.moveLog.push({
       actor: "AI",
-      notation: played.selected_move.notation,
+      notation: played.selected_play?.notation || played.selected_move.notation,
       dice: played.selected_move?.dice ? `${played.selected_move.dice[0]}-${played.selected_move.dice[1]}` : "",
       note: `${played.selected_move.quality} ${played.selected_move.delta_vs_best.toFixed(3)}${stepSummary.hits ? ` hits:${stepSummary.hits}` : ""}`,
     });

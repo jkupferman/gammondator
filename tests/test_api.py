@@ -155,6 +155,8 @@ def test_session_ai_turn() -> None:
     assert data["session_id"] == session_id
     assert data["move_count"] == 1
     assert "selected_move" in data
+    assert "selected_play" in data
+    assert len(data["selected_play"]["steps"]) >= 1
     assert len(data["top_moves"]) > 0
     assert data["current_position"]["turn"] == "black"
     assert data["current_position"]["dice"] == [4, 2]

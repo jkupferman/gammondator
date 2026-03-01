@@ -239,6 +239,7 @@ class SessionAIMoveRequest(BaseModel):
 class SessionAIMoveResponse(BaseModel):
     session_id: int
     selected_move: MoveScore
+    selected_play: Move
     top_moves: list[MoveScore]
     move_count: int
     current_position: Position | None = None

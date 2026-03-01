@@ -777,6 +777,7 @@ def play_session_ai_turn_endpoint(
             return SessionAIMoveResponse(
                 session_id=session_id,
                 selected_move=analyzed.best_move,
+                selected_play=selected,
                 top_moves=analyzed.top_moves,
                 move_count=int(state["move_count"]),
                 current_position=None,
@@ -804,6 +805,7 @@ def play_session_ai_turn_endpoint(
         return SessionAIMoveResponse(
             session_id=session_id,
             selected_move=analyzed.best_move,
+            selected_play=selected,
             top_moves=analyzed.top_moves,
             move_count=int(advanced["move_count"]),
             current_position=advanced["current_position"],
