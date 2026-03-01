@@ -1111,6 +1111,7 @@ async function resumeSelectedSession() {
     state.moveLog = [];
     state.legalMoves = [];
     state.legalMovesLoaded = false;
+    state.submittingMove = false;
     state.sessionTurns = [];
     state.lastReplay = null;
     resetAnimationState();
@@ -1121,9 +1122,7 @@ async function resumeSelectedSession() {
     renderMoveBuilder();
     await loadSessionTurns(state.sessionId);
     await refreshLegalMoves(true);
-    if (state.position && state.position.turn !== HUMAN_SIDE) {
-      await aiTurn(false);
-    }
+    await autoAdvanceToHumanTurn();
     await loadTrainingSummary();
     await loadAnalysisJobs();
     notify(`Resumed session #${state.sessionId}.`);
@@ -1164,6 +1163,7 @@ async function newSession() {
     state.selectedFrom = null;
     state.legalMoves = [];
     state.legalMovesLoaded = false;
+    state.submittingMove = false;
     state.moveLog = [];
     state.sessionTurns = [];
     state.lastReplay = null;
@@ -1178,10 +1178,8 @@ async function newSession() {
     el.die1.value = String(created.current_position.dice[0]);
     el.die2.value = String(created.current_position.dice[1]);
     await refreshLegalMoves(true);
-    if (state.position && state.position.turn !== HUMAN_SIDE) {
-      await aiTurn(false);
-    }
-    notify("Session created.");
+    await autoAdvanceToHumanTurn();
+    notify("Session created and ready.");
     await loadTrainingSummary();
     await loadAnalysisJobs();
     await loadSessionList();
@@ -1234,9 +1232,10 @@ async function submitMove() {
     await loadSessionTurns(state.sessionId);
     await loadTrainingSummary();
     await loadAnalysisJobs();
-    if (state.sessionId && state.position && state.position.turn !== HUMAN_SIDE) {
-      await aiTurn(false);
-    }
+    state.submittingMove = false;
+    renderMoveBuilder();
+    refreshButtons();
+    await autoAdvanceToHumanTurn();
   } catch (err) {
     notify(err.message, true);
   } finally {
@@ -1246,9 +1245,32 @@ async function submitMove() {
   }
 }
 
-async function aiTurn(showNotify = true) {
+async function autoAdvanceToHumanTurn() {
   if (!state.sessionId || !state.position) return;
-  if (state.position.turn === HUMAN_SIDE) return;
+  let safety = 0;
+  while (state.sessionId && state.position && state.position.turn !== HUMAN_SIDE && safety < 12) {
+    const beforeTurn = state.position.turn;
+    const beforeDice = `${state.position.dice[0]}-${state.position.dice[1]}`;
+    const progressed = await aiTurn(false);
+    if (!progressed) {
+      break;
+    }
+    safety += 1;
+    if (!state.position) break;
+    const afterDice = `${state.position.dice[0]}-${state.position.dice[1]}`;
+    if (state.position.turn === beforeTurn && afterDice === beforeDice) {
+      notify("AI turn did not advance state. Use Resume and report this state.", true);
+      break;
+    }
+  }
+  if (safety >= 12) {
+    notify("Auto-advance safety limit reached. Use Resume and report this state.", true);
+  }
+}
+
+async function aiTurn(showNotify = true) {
+  if (!state.sessionId || !state.position) return false;
+  if (state.position.turn === HUMAN_SIDE) return false;
   try {
     const startingPosition = clonePosition(state.position);
     const played = await api(`/sessions/${state.sessionId}/ai-turn`, {
@@ -1278,8 +1300,10 @@ async function aiTurn(showNotify = true) {
     if (showNotify) {
       notify(`AI played ${played.selected_move.notation}\n${JSON.stringify(played.selected_move, null, 2)}`);
     }
+    return true;
   } catch (err) {
     notify(err.message, true);
+    return false;
   }
 }
 
