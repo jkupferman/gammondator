@@ -310,6 +310,12 @@ function onPointClick(point) {
     return;
   }
 
+  if (state.selectedFrom === point) {
+    state.selectedFrom = null;
+    render();
+    return;
+  }
+
   if (state.selectedFrom === null) {
     chooseSource(point);
   } else {
