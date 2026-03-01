@@ -174,12 +174,14 @@ button:disabled {
   transform: translateX(-50%);
 }
 
-.board-point.down .point-number {
+.board-row.top .board-point .point-number {
   top: 6px;
+  bottom: auto;
 }
 
-.board-point.up .point-number {
+.board-row.bottom .board-point .point-number {
   bottom: 6px;
+  top: auto;
 }
 
 .checker-stack {
@@ -191,17 +193,20 @@ button:disabled {
   gap: 2px;
   min-height: 106px;
   justify-content: flex-end;
-  padding-top: 20px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
-.board-point.down .checker-stack {
+.board-row.top .board-point .checker-stack {
   justify-content: flex-start;
   padding-top: 24px;
   padding-bottom: 6px;
 }
 
-.board-point.up .checker-stack {
+.board-row.bottom .board-point .checker-stack {
+  justify-content: flex-end;
   padding-bottom: 24px;
+  padding-top: 6px;
 }
 
 .checker {
