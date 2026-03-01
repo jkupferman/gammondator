@@ -42,6 +42,32 @@ function notify(message, isError = false) {
   el.feedback.textContent = isError ? `Error: ${message}` : message;
 }
 
+function diePipPositions(value) {
+  const v = Number(value);
+  const positions = {
+    1: [5],
+    2: [1, 9],
+    3: [1, 5, 9],
+    4: [1, 3, 7, 9],
+    5: [1, 3, 5, 7, 9],
+    6: [1, 3, 4, 6, 7, 9],
+  };
+  return positions[v] || [];
+}
+
+function renderDieFace(value) {
+  const active = new Set(diePipPositions(value));
+  const cells = [];
+  for (let i = 1; i <= 9; i += 1) {
+    cells.push(`<span class="pip-cell">${active.has(i) ? "<span class=\"pip-dot\"></span>" : ""}</span>`);
+  }
+  return `<span class="die-face" aria-label="Die ${Number(value)}">${cells.join("")}</span>`;
+}
+
+function renderDiceReadout(d1, d2) {
+  return `<span class="dice-readout"><span class="dice-label">Dice:</span>${renderDieFace(d1)}${renderDieFace(d2)}</span>`;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -340,7 +366,7 @@ function renderStatus() {
 
   el.sessionStatus.textContent = `Session: #${state.sessionId}`;
   el.turnStatus.textContent = `Turn: ${state.position.turn}`;
-  el.diceStatus.textContent = `Dice: ${state.position.dice[0]}-${state.position.dice[1]}`;
+  el.diceStatus.innerHTML = renderDiceReadout(state.position.dice[0], state.position.dice[1]);
 
   let statusText = "Your turn (black). Select checker to move.";
   if (state.submittingMove) {
