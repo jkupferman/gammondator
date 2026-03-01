@@ -16,6 +16,7 @@ const state = {
   sessionTurns: [],
   currentDrill: null,
 };
+const HUMAN_SIDE = "black";
 
 const el = {
   die1: document.getElementById("die1"),
@@ -123,19 +124,19 @@ function currentProfileId() {
 }
 
 function rollOpeningSequence() {
-  let playerDie = 1;
+  let humanDie = 1;
   let aiDie = 1;
-  while (playerDie === aiDie) {
-    playerDie = Math.floor(Math.random() * 6) + 1;
+  while (humanDie === aiDie) {
+    humanDie = Math.floor(Math.random() * 6) + 1;
     aiDie = Math.floor(Math.random() * 6) + 1;
   }
-  const playerStarts = playerDie > aiDie;
+  const humanStarts = humanDie > aiDie;
   return {
-    playerDie,
+    humanDie,
     aiDie,
-    playerStarts,
-    turn: playerStarts ? "white" : "black",
-    dice: playerStarts ? [playerDie, aiDie] : [aiDie, playerDie],
+    humanStarts,
+    turn: humanStarts ? "black" : "white",
+    dice: [humanDie, aiDie],
   };
 }
 
@@ -431,6 +432,9 @@ function getValidTargetsForSelection() {
 
 function canChooseSource(point) {
   if (!state.position || state.animating) {
+    return false;
+  }
+  if (state.position.turn !== HUMAN_SIDE) {
     return false;
   }
   const position = workingPosition();
@@ -846,6 +850,7 @@ function renderOffCheckers(side, count) {
 function renderMoveBuilder() {
   const validTargets = getValidTargetsForSelection();
   const offPoint = state.position ? (state.position.turn === "white" ? 0 : 25) : null;
+  const humanTurn = Boolean(state.position && state.position.turn === HUMAN_SIDE);
 
   if (state.moveSteps.length === 0) {
     el.currentMove.textContent = "No move selected";
@@ -855,9 +860,9 @@ function renderMoveBuilder() {
   }
   el.clearMoveBtn.disabled = state.moveSteps.length === 0;
   el.undoStepBtn.disabled = state.moveSteps.length === 0;
-  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating;
-  el.fromBarBtn.disabled = !state.position || state.animating;
-  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating;
+  el.submitMoveBtn.disabled = !state.sessionId || state.moveSteps.length === 0 || state.animating || !humanTurn;
+  el.fromBarBtn.disabled = !state.position || state.animating || !humanTurn;
+  el.toOffBtn.disabled = !state.position || state.selectedFrom === null || state.animating || !humanTurn;
   el.clearMoveBtn.disabled = el.clearMoveBtn.disabled || state.animating;
   el.undoStepBtn.disabled = el.undoStepBtn.disabled || state.animating;
   el.replayMoveBtn.disabled = state.animating || !state.lastReplay;
@@ -1054,6 +1059,9 @@ async function resumeSelectedSession() {
     renderMoveBuilder();
     await loadSessionTurns(state.sessionId);
     await refreshLegalMoves(true);
+    if (state.position && state.position.turn !== HUMAN_SIDE) {
+      await aiTurn(false);
+    }
     await loadTrainingSummary();
     await loadAnalysisJobs();
     notify(`Resumed session #${state.sessionId}.`);
@@ -1107,6 +1115,9 @@ async function newSession() {
     el.die1.value = String(created.current_position.dice[0]);
     el.die2.value = String(created.current_position.dice[1]);
     await refreshLegalMoves(true);
+    if (state.position && state.position.turn !== HUMAN_SIDE) {
+      await aiTurn(false);
+    }
     notify("Session created.");
     await loadTrainingSummary();
     await loadAnalysisJobs();
@@ -1155,6 +1166,9 @@ async function submitMove() {
     await loadSessionTurns(state.sessionId);
     await loadTrainingSummary();
     await loadAnalysisJobs();
+    if (state.sessionId && state.position && state.position.turn !== HUMAN_SIDE) {
+      await aiTurn(false);
+    }
   } catch (err) {
     notify(err.message, true);
   }
@@ -1162,6 +1176,7 @@ async function submitMove() {
 
 async function aiTurn(showNotify = true) {
   if (!state.sessionId || !state.position) return;
+  if (state.position.turn === HUMAN_SIDE) return;
   try {
     const startingPosition = clonePosition(state.position);
     const played = await api(`/sessions/${state.sessionId}/ai-turn`, {
