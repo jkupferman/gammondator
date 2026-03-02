@@ -1,7 +1,9 @@
 import os
 import random
+import logging
 from contextlib import contextmanager
 from pathlib import Path
+from time import perf_counter
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -66,6 +68,7 @@ from app.schemas import (
 from app.training_store import TrainingStore
 
 app = FastAPI(title="Gammondator API", version="0.1.0")
+logger = logging.getLogger(__name__)
 runtime = load_backend()
 training_store = TrainingStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
 session_store = SessionStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
@@ -495,12 +498,13 @@ def _rate_played_move(payload: RatePlayedMoveRequest) -> AnalyzeMoveResponse:
     if move_signature(payload.played_move) not in legal_move_signatures(payload.position):
         raise HTTPException(status_code=400, detail="played_move is not legal for this position/dice")
 
-    return runtime.analyze_move(
+    return _analyze_with_runtime(
         AnalyzeMoveRequest(
             position=payload.position,
             played_move=payload.played_move,
             candidate_moves=legal_moves,
-        )
+        ),
+        context="rate_played_move",
     )
 
 
@@ -509,13 +513,40 @@ def _analyze_position(payload: AnalyzePositionRequest) -> AnalyzeMoveResponse:
     if not legal_moves:
         raise HTTPException(status_code=400, detail="no legal moves available")
 
-    return runtime.analyze_move(
+    return _analyze_with_runtime(
         AnalyzeMoveRequest(
             position=payload.position,
             played_move=legal_moves[0],
             candidate_moves=legal_moves,
-        )
+        ),
+        context="analyze_position",
     )
+
+
+def _is_terminal_position(position: Position) -> bool:
+    return int(position.off_black) >= 15 or int(position.off_white) >= 15
+
+
+def _analyze_with_runtime(request: AnalyzeMoveRequest, context: str) -> AnalyzeMoveResponse:
+    was_primary_unavailable = runtime.primary_unavailable
+    started = perf_counter()
+    response = runtime.analyze_move(request)
+    elapsed_ms = (perf_counter() - started) * 1000.0
+    fallback_triggered = (not was_primary_unavailable) and runtime.primary_unavailable
+    used_backend = runtime.backend.name
+    if runtime.primary_unavailable and runtime.fallback_backend is not None:
+        used_backend = runtime.fallback_backend.name
+    logger.info(
+        "analysis_complete context=%s configured_backend=%s used_backend=%s fallback_active=%s "
+        "fallback_triggered=%s elapsed_ms=%.2f",
+        context,
+        runtime.backend.name,
+        used_backend,
+        runtime.fallback_active,
+        fallback_triggered,
+        elapsed_ms,
+    )
+    return response
 
 
 @app.post("/rate-played-move", response_model=AnalyzeMoveResponse)
@@ -804,7 +835,7 @@ def play_session_turn_endpoint(
             final_move_count = int(advanced["move_count"])
             if payload.auto_advance_to_human:
                 safety = 0
-                while final_position.turn != "black" and safety < 12:
+                while final_position.turn != "black" and safety < 12 and not _is_terminal_position(final_position):
                     ai_outcome = _apply_ai_turn_once(session_id=session_id, current_position=final_position)
                     if ai_outcome.current_position is None:
                         break
@@ -814,6 +845,8 @@ def play_session_turn_endpoint(
                     safety += 1
                 if safety >= 12:
                     raise HTTPException(status_code=500, detail="auto-advance safety limit reached")
+            if _is_terminal_position(final_position):
+                session_store.close_session(session_id)
             return SessionPlayTurnResponse(
                 session_id=int(advanced["session_id"]),
                 move_count=final_move_count,
@@ -851,7 +884,7 @@ def play_session_turn_endpoint(
 
         if payload.auto_advance_to_human:
             safety = 0
-            while final_position.turn != "black" and safety < 12:
+            while final_position.turn != "black" and safety < 12 and not _is_terminal_position(final_position):
                 ai_outcome = _apply_ai_turn_once(session_id=session_id, current_position=final_position)
                 if ai_outcome.current_position is None:
                     break
@@ -861,6 +894,8 @@ def play_session_turn_endpoint(
                 safety += 1
             if safety >= 12:
                 raise HTTPException(status_code=500, detail="auto-advance safety limit reached")
+        if _is_terminal_position(final_position):
+            session_store.close_session(session_id)
 
         return SessionPlayTurnResponse(
             session_id=int(advanced["session_id"]),
@@ -897,6 +932,8 @@ def play_session_ai_turn_endpoint(
             apply_move=payload.apply_move,
             move_count=int(state["move_count"]),
         )
+        if outcome.current_position is not None and _is_terminal_position(outcome.current_position):
+            session_store.close_session(session_id)
         return outcome
     except BackendUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -953,12 +990,13 @@ def _apply_ai_turn_once(
             current_position=updated["current_position"],
         )
 
-    analyzed = runtime.analyze_move(
+    analyzed = _analyze_with_runtime(
         AnalyzeMoveRequest(
             position=current_position,
             played_move=legal_moves[0],
             candidate_moves=legal_moves,
-        )
+        ),
+        context="ai_turn_select",
     )
     selected = next(
         (
@@ -977,12 +1015,13 @@ def _apply_ai_turn_once(
         None,
     )
     if selected_score is None:
-        selected_analysis = runtime.analyze_move(
+        selected_analysis = _analyze_with_runtime(
             AnalyzeMoveRequest(
                 position=current_position,
                 played_move=selected,
                 candidate_moves=legal_moves,
-            )
+            ),
+            context="ai_turn_selected_score",
         )
         selected_score = selected_analysis.played_move
 
@@ -996,12 +1035,13 @@ def _apply_ai_turn_once(
             current_position=None,
         )
 
-    applied_analysis = runtime.analyze_move(
+    applied_analysis = _analyze_with_runtime(
         AnalyzeMoveRequest(
             position=current_position,
             played_move=selected,
             candidate_moves=legal_moves,
-        )
+        ),
+        context="ai_turn_apply",
     )
     next_position = apply_move_to_position(
         position=current_position,

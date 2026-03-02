@@ -11,16 +11,13 @@ This is an MVP foundation designed to plug into a stronger engine (e.g. GNU Back
 ## Web Trainer Highlights
 
 - Rendered backgammon board with CSS points, bar, and off trays.
-- Click/tap/drag move input with legal source/target enforcement.
+- Click/tap move input with legal source/target enforcement.
 - Legal destination highlighting for selected checkers.
-- Session gameplay loop controls (new, roll, AI turn, close, report).
-- Session gameplay loop controls (new, roll, AI suggest, AI turn, close, report).
-- Session resume picker for existing profile sessions.
-- Session move log restored from backend turn history on resume.
-- Move log with quality/equity-loss tags.
-- Move feedback summary in readable coaching format.
-- Auto AI reply toggle for faster training cycles.
-- Training dashboard, cube trainer, drill workflow, and analysis queue controls.
+- Automatic opening roll + auto-play for white turns.
+- Tip button for previewing the strongest line.
+- Move feedback with quality, equity loss, win pct, and reason text.
+- Session resume on refresh via persisted last active session.
+- Dedicated game-over panel with one-click new game.
 
 ## Quick Start
 
@@ -341,18 +338,12 @@ Run the API and open the root URL:
 
 The web UI supports:
 - session creation
-- profile selection (`profile_id`)
-- backgammon-style rendered board (points, bar, stacked checkers)
-- legal move loading
-- click-based move builder + submit
-- AI turn button
-- roll button and session close action
-- session report and training summary panels
-- cube trainer decision checker panel
-- drill mode load/answer flow
-- analysis queue create/run-next controls and job list
-- retry-latest-job control
-- cleanup-finished-jobs control
+- backgammon-style rendered board (points, bar, stacked checkers, off rails)
+- automatic AI turns for white
+- manual black move entry with legal move enforcement
+- tip lookup for the current roll
+- move feedback panel for submitted human turns
+- game-over panel with winner state + restart action
 
 ## Testing
 

@@ -293,6 +293,73 @@ def test_play_turn_forced_pass_advances_and_autoplays_ai() -> None:
     assert payload["current_position"]["turn"] == "black"
 
 
+def test_play_turn_closes_session_when_human_bears_off_final_checker() -> None:
+    points = [0] * 24
+    points[0] = 15
+    points[23] = -1
+    almost_done_black = {
+        "points": points,
+        "bar_white": 0,
+        "bar_black": 0,
+        "off_white": 0,
+        "off_black": 14,
+        "turn": "black",
+        "cube_value": 1,
+        "dice": [1, 3],
+    }
+    create_response = client.post("/sessions", json={"initial_position": almost_done_black})
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+
+    play_response = client.post(
+        f"/sessions/{session_id}/play-turn",
+        json={
+            "played_move": {"notation": "24/25", "steps": [{"from_point": 24, "to_point": 25}]},
+            "record_training": False,
+            "auto_advance_to_human": False,
+            "next_dice": [2, 2],
+        },
+    )
+    assert play_response.status_code == 200
+    payload = play_response.json()
+    assert payload["current_position"]["off_black"] == 15
+
+    state_response = client.get(f"/sessions/{session_id}")
+    assert state_response.status_code == 200
+    assert state_response.json()["status"] == "completed"
+
+
+def test_ai_turn_closes_session_when_ai_bears_off_final_checker() -> None:
+    points = [0] * 24
+    points[0] = 1
+    points[23] = -15
+    almost_done_white = {
+        "points": points,
+        "bar_white": 0,
+        "bar_black": 0,
+        "off_white": 14,
+        "off_black": 0,
+        "turn": "white",
+        "cube_value": 1,
+        "dice": [1, 4],
+    }
+    create_response = client.post("/sessions", json={"initial_position": almost_done_white})
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+
+    ai_response = client.post(
+        f"/sessions/{session_id}/ai-turn",
+        json={"apply_move": True, "next_dice": [3, 2]},
+    )
+    assert ai_response.status_code == 200
+    payload = ai_response.json()
+    assert payload["current_position"]["off_white"] == 15
+
+    state_response = client.get(f"/sessions/{session_id}")
+    assert state_response.status_code == 200
+    assert state_response.json()["status"] == "completed"
+
+
 def test_session_roll_endpoint() -> None:
     create_response = client.post(
         "/sessions",

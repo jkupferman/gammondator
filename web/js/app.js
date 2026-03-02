@@ -1,3 +1,6 @@
+import { api } from "/web/js/api.js";
+import { buildAnalysisFeedback, formatTipSummary, renderDiceReadout } from "/web/js/feedback.js";
+
 const HUMAN_SIDE = "black";
 
 const state = {
@@ -29,19 +32,11 @@ const el = {
   offColumn: document.getElementById("offColumn"),
   moveStatus: document.getElementById("moveStatus"),
   feedback: document.getElementById("feedback"),
+  gameOverPanel: document.getElementById("gameOverPanel"),
+  gameOverTitle: document.getElementById("gameOverTitle"),
+  gameOverBody: document.getElementById("gameOverBody"),
+  gameOverNewGameBtn: document.getElementById("gameOverNewGameBtn"),
 };
-
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-    throw new Error(data.detail || `HTTP ${response.status}`);
-  }
-  return response.json();
-}
 
 function notify(message, isError = false) {
   el.feedback.textContent = isError ? `Error: ${message}` : message;
@@ -92,130 +87,6 @@ async function handleGameOver(winner) {
   }
 }
 
-function diePipPositions(value) {
-  const v = Number(value);
-  const positions = {
-    1: [5],
-    2: [1, 9],
-    3: [1, 5, 9],
-    4: [1, 3, 7, 9],
-    5: [1, 3, 5, 7, 9],
-    6: [1, 3, 4, 6, 7, 9],
-  };
-  return positions[v] || [];
-}
-
-function renderDieFace(value) {
-  const active = new Set(diePipPositions(value));
-  const cells = [];
-  for (let i = 1; i <= 9; i += 1) {
-    cells.push(`<span class="pip-cell">${active.has(i) ? "<span class=\"pip-dot\"></span>" : ""}</span>`);
-  }
-  return `<span class="die-face" aria-label="Die ${Number(value)}">${cells.join("")}</span>`;
-}
-
-function renderDiceReadout(d1, d2) {
-  return `<span class="dice-readout"><span class="dice-label">Dice:</span>${renderDieFace(d1)}${renderDieFace(d2)}</span>`;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll("\"", "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function parseNotationSteps(notation) {
-  if (!notation) return [];
-  return String(notation)
-    .trim()
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.includes("/"));
-}
-
-function humanizeNotation(notation) {
-  const steps = parseNotationSteps(notation);
-  if (!steps.length) return String(notation || "");
-  const humanized = steps.map((step) => {
-    const [rawFrom = "", rawTo = ""] = step.split("/");
-    const from = rawFrom === "0" || rawFrom === "25" ? "bar" : rawFrom;
-    const to = rawTo === "0" || rawTo === "25" ? "off" : rawTo;
-    return `${from}/${to}`;
-  });
-  return humanized.join(" ");
-}
-
-function stepEndpointRank(value) {
-  const token = String(value || "").toLowerCase();
-  if (token === "bar") return -1;
-  if (token === "off") return 99;
-  const num = Number(token);
-  if (Number.isFinite(num)) return num;
-  return 50;
-}
-
-function canonicalizeNotation(notation) {
-  const steps = parseNotationSteps(notation);
-  if (!steps.length) return String(notation || "");
-  const sorted = [...steps].sort((a, b) => {
-    const [af = "", at = ""] = a.split("/");
-    const [bf = "", bt = ""] = b.split("/");
-    const fromDiff = stepEndpointRank(af) - stepEndpointRank(bf);
-    if (fromDiff !== 0) return fromDiff;
-    return stepEndpointRank(at) - stepEndpointRank(bt);
-  });
-  return sorted.join(" ");
-}
-
-function countSharedSteps(playedNotation, bestNotation) {
-  const played = parseNotationSteps(playedNotation);
-  const best = parseNotationSteps(bestNotation);
-  if (!played.length || !best.length) {
-    return { shared: 0, total: played.length };
-  }
-  const bestCounts = new Map();
-  for (const step of best) {
-    bestCounts.set(step, (bestCounts.get(step) || 0) + 1);
-  }
-  let shared = 0;
-  for (const step of played) {
-    const remaining = bestCounts.get(step) || 0;
-    if (remaining > 0) {
-      shared += 1;
-      bestCounts.set(step, remaining - 1);
-    }
-  }
-  return { shared, total: played.length };
-}
-
-function renderPlayedNotationWithSharedSteps(playedNotation, bestNotation) {
-  const played = parseNotationSteps(playedNotation);
-  if (!played.length) {
-    return escapeHtml(playedNotation || "");
-  }
-  const best = parseNotationSteps(bestNotation);
-  const bestCounts = new Map();
-  for (const step of best) {
-    bestCounts.set(step, (bestCounts.get(step) || 0) + 1);
-  }
-  let shared = 0;
-  const parts = played.map((step) => {
-    const remaining = bestCounts.get(step) || 0;
-    if (remaining > 0) {
-      shared += 1;
-      bestCounts.set(step, remaining - 1);
-      return `<span class="feedback-step-shared">${escapeHtml(step)}</span>`;
-    }
-    return `<span class="feedback-step-normal">${escapeHtml(step)}</span>`;
-  });
-  if (shared === 0 || shared === played.length) {
-    return escapeHtml(playedNotation || "");
-  }
-  return parts.join(" ");
-}
 
 function setTransientStatus(message, isError = false, durationMs = 1800) {
   if (state.transientStatusTimer !== null) {
@@ -275,162 +146,6 @@ function startingPosition() {
   };
 }
 
-function formatMoveAnalysisSummary(analysis) {
-  if (!analysis || !analysis.played_move || !analysis.best_move) {
-    return null;
-  }
-  const played = analysis.played_move;
-  const best = analysis.best_move;
-  const reasons = Array.isArray(played.why) && played.why.length ? played.why : ["No notes available."];
-  const qualityTitle = {
-    excellent: "Excellent move.",
-    good: "Good move.",
-    inaccuracy: "Small miss.",
-    mistake: "Mistake.",
-    blunder: "Major mistake.",
-  }[played.quality] || "Move reviewed.";
-  const loss = Number(played.delta_vs_best || 0);
-  const isOptimal = loss <= 0.000001;
-  const isRoundedZero = Number(loss.toFixed(3)) === 0;
-  const isNearOptimal = !isOptimal && isRoundedZero;
-  const playedHuman = humanizeNotation(played.notation);
-  const bestHuman = humanizeNotation(best.notation);
-  const playedDisplay = isOptimal || isNearOptimal ? canonicalizeNotation(playedHuman) : playedHuman;
-  const bestDisplay = isOptimal || isNearOptimal ? canonicalizeNotation(bestHuman) : bestHuman;
-  const headline = isOptimal ? "Optimal move." : isNearOptimal ? "Near-optimal move." : qualityTitle;
-  const currentWinPct = estimateWinPctFromEquity(played.equity);
-  const winDelta = state.lastHumanWinPct === null ? null : currentWinPct - state.lastHumanWinPct;
-  const sharedSteps = countSharedSteps(playedDisplay, bestDisplay);
-  const lossHint =
-    isOptimal
-      ? "You found an optimal move."
-      : isNearOptimal
-      ? "Essentially tied with best line at displayed precision."
-      : loss < 0.02
-      ? "You were very close to optimal."
-      : loss < 0.08
-        ? "There was a slightly stronger option."
-        : loss < 0.2
-          ? "There was a clearly better option."
-          : "This choice gives up a lot of equity.";
-  const firstReason = reasons[0] || "No notes available.";
-  const whyPrefix = isOptimal || isNearOptimal ? "Trade-off note" : "Why";
-  const nextStep = buildNextStepAdvice({
-    isOptimal,
-    playedNotation: playedDisplay,
-    bestNotation: bestDisplay,
-    firstReason,
-    equityLoss: loss,
-  });
-  const winPctLine =
-    winDelta === null
-      ? `Win %: ${currentWinPct.toFixed(1)}%`
-      : `Win %: ${currentWinPct.toFixed(1)}% (${winDelta >= 0 ? "+" : ""}${winDelta.toFixed(1)}%)`;
-  const nextStepLine = isOptimal ? null : `Takeaway: ${nextStep}`;
-  state.lastHumanWinPct = currentWinPct;
-  return {
-    quality: played.quality,
-    qualityTitle: headline,
-    playedNotation: playedDisplay,
-    bestLine: bestDisplay,
-    equityLossLine: `Equity loss: ${loss.toFixed(3)}. ${lossHint}`,
-    winPctValue: currentWinPct,
-    winDelta,
-    whyLine: `${whyPrefix}: ${firstReason}`,
-    nextStepLine,
-    sharedSteps,
-  };
-}
-
-function buildNextStepAdvice({ isOptimal, playedNotation, bestNotation, firstReason, equityLoss }) {
-  if (isOptimal) {
-    return "You matched the engine's top plan in this position.";
-  }
-  const reason = (firstReason || "").toLowerCase();
-  if (reason.includes("race")) {
-    return "Engine preference: maximize pip efficiency while keeping risk controlled.";
-  }
-  if (reason.includes("blot")) {
-    return "Engine preference: safer checker distribution and lower tactical exposure.";
-  }
-  if (reason.includes("anchor")) {
-    return "Engine preference: preserve or improve anchor quality.";
-  }
-  if (reason.includes("hit")) {
-    return "Engine preference: stronger contact sequence than the played line.";
-  }
-  if (reason.includes("bar")) {
-    return "Engine preference: cleaner bar-entry structure with fewer follow-up liabilities.";
-  }
-  if (reason.includes("bear")) {
-    return "Engine preference: more efficient bear-off pattern.";
-  }
-  if (equityLoss < 0.05) {
-    return "Close decision: the engine found a slightly more efficient line.";
-  }
-  if (playedNotation !== bestNotation) {
-    return "Engine preference: a different line with better overall equity.";
-  }
-  return "Engine preference: a line with better balance between safety and efficiency.";
-}
-
-function estimateWinPctFromEquity(equity) {
-  const normalized = Math.max(-1, Math.min(1, Number(equity) || 0));
-  return 50 + normalized * 50;
-}
-
-function renderAnalysisFeedback(analysis, aiSummary = "") {
-  const summary = formatMoveAnalysisSummary(analysis);
-  if (!summary) {
-    notify("No move analysis available.");
-    return;
-  }
-  const qualityClass = `quality-${summary.quality || "good"}`;
-  const hasDelta = summary.winDelta !== null;
-  const normalizedDelta = hasDelta ? Number(summary.winDelta.toFixed(1)) : null;
-  const isFlatDelta = normalizedDelta !== null && Math.abs(normalizedDelta) < 0.1;
-  const deltaText =
-    !hasDelta
-      ? ""
-      : isFlatDelta
-        ? "(no change)"
-        : `(${normalizedDelta >= 0 ? "+" : ""}${normalizedDelta.toFixed(1)}%)`;
-  const deltaClass =
-    !hasDelta || isFlatDelta ? "delta-flat" : normalizedDelta >= 0 ? "delta-up" : "delta-down";
-  const playedWithShared = renderPlayedNotationWithSharedSteps(summary.playedNotation, summary.bestLine);
-  const sharedInfo = countSharedSteps(summary.playedNotation, summary.bestLine);
-  const bestLineClass =
-    sharedInfo.total > 0 && sharedInfo.shared > 0 ? "feedback-best-line" : "feedback-step-normal";
-  const lines = [
-    `<span class="feedback-quality ${qualityClass}">${escapeHtml(summary.qualityTitle)}</span>`,
-    `You played: ${playedWithShared}`,
-    `Best line: <span class="${bestLineClass}">${escapeHtml(summary.bestLine)}</span>`,
-  ];
-  lines.push(escapeHtml(summary.equityLossLine));
-  lines.push(
-    `Win Pct: ${summary.winPctValue.toFixed(1)}%` +
-      (deltaText ? ` <span class="feedback-win-delta ${deltaClass}">${escapeHtml(deltaText)}</span>` : ""),
-  );
-  lines.push(escapeHtml(summary.whyLine));
-  if (summary.nextStepLine) {
-    lines.push(escapeHtml(summary.nextStepLine));
-  }
-  if (aiSummary) {
-    lines.push("");
-    lines.push(escapeHtml(aiSummary));
-  }
-  el.feedback.innerHTML = lines.join("\n");
-}
-
-function formatTipSummary(selectedMove, suggestion) {
-  if (!selectedMove || !suggestion) {
-    return "No tip available right now.";
-  }
-  const reasons = Array.isArray(selectedMove.why) && selectedMove.why.length ? selectedMove.why : [];
-  const leadReason = reasons[0] ? `\nReason: ${reasons[0]}` : "";
-  return `Tip: consider ${suggestion.notation}\nThis is rated ${selectedMove.quality} (equity ${selectedMove.equity.toFixed(3)}).${leadReason}`;
-}
-
 function renderStatus() {
   if (!state.sessionId || !state.position) {
     el.sessionStatus.textContent = "Session: -";
@@ -472,6 +187,20 @@ function renderStatus() {
     state.animating ||
     !state.legalMovesLoaded ||
     state.legalMoves.length === 0;
+}
+
+function renderGameOverPanel() {
+  if (!el.gameOverPanel || !el.gameOverTitle || !el.gameOverBody) return;
+  if (!state.gameOver || !state.winner) {
+    el.gameOverPanel.hidden = true;
+    return;
+  }
+  const won = state.winner === HUMAN_SIDE;
+  el.gameOverTitle.textContent = won ? "You won" : "White won";
+  el.gameOverBody.textContent = won
+    ? "Session complete. Start a new game to keep training."
+    : "Session complete. Start a new game for another training round.";
+  el.gameOverPanel.hidden = false;
 }
 
 async function animateMoveReplay(startPosition, steps, finalPosition) {
@@ -919,6 +648,7 @@ function renderBoard() {
 function render() {
   renderStatus();
   renderBoard();
+  renderGameOverPanel();
 }
 
 async function refreshLegalMoves() {
@@ -1152,7 +882,13 @@ async function submitMove() {
     const aiSummary = aiReplies.length
       ? `AI replies: ${aiReplies.map((turn) => turn.selected_play?.notation || turn.selected_move?.notation || "pass").join(" | ")}`
       : "";
-    renderAnalysisFeedback(played.analysis, aiSummary);
+    const feedback = buildAnalysisFeedback(played.analysis, state.lastHumanWinPct, aiSummary);
+    if (!feedback.ok) {
+      notify(feedback.text || "No move analysis available.");
+    } else {
+      el.feedback.innerHTML = feedback.html;
+      state.lastHumanWinPct = feedback.nextHumanWinPct;
+    }
     await refreshLegalMoves();
   } catch (err) {
     notify(err.message, true);
@@ -1184,5 +920,8 @@ async function showTip() {
 
 el.newGameBtn.addEventListener("click", createNewSession);
 el.tipBtn.addEventListener("click", showTip);
+if (el.gameOverNewGameBtn) {
+  el.gameOverNewGameBtn.addEventListener("click", createNewSession);
+}
 
 ensureSession();

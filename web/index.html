@@ -22,6 +22,12 @@
       <span id="diceStatus">Dice: -</span>
     </section>
 
+    <section class="game-over-panel" id="gameOverPanel" hidden>
+      <h2 id="gameOverTitle">Game Over</h2>
+      <p id="gameOverBody"></p>
+      <button id="gameOverNewGameBtn">Start New Game</button>
+    </section>
+
     <section class="board-panel">
       <div class="board-stage">
         <div class="board-grid" id="boardGrid"></div>
@@ -36,6 +42,6 @@
     </section>
   </main>
 
-  <script src="/web/app.js"></script>
+  <script type="module" src="/web/js/app.js"></script>
 </body>
 </html>
