@@ -27,11 +27,59 @@ This is an MVP foundation designed to plug into a stronger engine (e.g. GNU Back
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]'
+python -m pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
 ```
 
 Server runs at `http://127.0.0.1:8000`.
+
+## Installation Options
+
+Runtime-only install:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Development install:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+Editable package install is also supported:
+
+```bash
+python -m pip install -e '.[dev]'
+```
+
+## Development Workflow
+
+Run tests:
+
+```bash
+python -m pytest -q
+```
+
+Run linting (Ruff):
+
+```bash
+ruff check .
+```
+
+Auto-fix lint issues where possible:
+
+```bash
+ruff check . --fix
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
+- setup instructions
+- coding standards
+- pull request expectations
 
 ## Endpoints
 
