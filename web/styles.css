@@ -382,6 +382,36 @@ button:disabled {
   line-height: 1.35;
 }
 
+.debug-footer {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.debug-toggle {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #5b5448;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.debug-panel {
+  width: 100%;
+  background: rgba(255, 248, 232, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.debug-panel pre {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
 .feedback-quality {
   font-weight: 800;
 }

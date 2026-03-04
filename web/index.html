@@ -18,7 +18,7 @@
     </header>
 
     <section class="status-bar">
-      <span id="sessionStatus">Session: -</span>
+      <span id="sessionStatus">Game: -</span>
       <span id="turnStatus">Turn: -</span>
       <span id="diceStatus">Dice: -</span>
     </section>
@@ -35,6 +35,13 @@
       <h2>Move Feedback</h2>
       <pre id="feedback">Starting up...</pre>
     </section>
+
+    <footer class="debug-footer">
+      <button id="debugToggle" class="debug-toggle" type="button" aria-expanded="false">Debug</button>
+      <section id="debugPanel" class="debug-panel" hidden>
+        <pre id="debugInfo">Loading debug info...</pre>
+      </section>
+    </footer>
   </main>
 
   <script type="module" src="/web/js/app.js"></script>

@@ -18,6 +18,12 @@ const state = {
   gameOver: false,
   winner: null,
   gameOverHandled: false,
+  debugVisible: false,
+  clientId: null,
+  backend: null,
+  fallbackActive: null,
+  analyzerDetails: null,
+  lastMessage: "Starting up...",
 };
 
 const LAST_SESSION_KEY = "gammondator.lastSessionId";
@@ -32,10 +38,15 @@ const el = {
   offColumn: document.getElementById("offColumn"),
   moveStatus: document.getElementById("moveStatus"),
   feedback: document.getElementById("feedback"),
+  debugToggle: document.getElementById("debugToggle"),
+  debugPanel: document.getElementById("debugPanel"),
+  debugInfo: document.getElementById("debugInfo"),
 };
 
 function notify(message, isError = false) {
+  state.lastMessage = isError ? `Error: ${message}` : message;
   el.feedback.textContent = isError ? `Error: ${message}` : message;
+  renderDebugPanel();
 }
 
 function readLastSessionId() {
@@ -144,7 +155,7 @@ function startingPosition() {
 
 function renderStatus() {
   if (!state.sessionId || !state.position) {
-    el.sessionStatus.textContent = "Session: -";
+    el.sessionStatus.textContent = "Game: starting";
     el.turnStatus.textContent = "Turn: -";
     el.diceStatus.textContent = "Dice: -";
     el.moveStatus.textContent = "Starting up...";
@@ -152,7 +163,7 @@ function renderStatus() {
     return;
   }
 
-  el.sessionStatus.textContent = `Session: #${state.sessionId}`;
+  el.sessionStatus.textContent = state.gameOver ? "Game: complete" : "Game: in progress";
   el.turnStatus.textContent = `Turn: ${state.position.turn}`;
   el.diceStatus.innerHTML = renderDiceReadout(state.position.dice[0], state.position.dice[1]);
 
@@ -630,6 +641,44 @@ function renderBoard() {
 function render() {
   renderStatus();
   renderBoard();
+  renderDebugPanel();
+}
+
+function renderDebugPanel() {
+  if (!el.debugPanel || !el.debugInfo || !el.debugToggle) return;
+  el.debugPanel.hidden = !state.debugVisible;
+  el.debugToggle.setAttribute("aria-expanded", state.debugVisible ? "true" : "false");
+
+  const lines = [
+    `client_id: ${state.clientId || "-"}`,
+    `session_id: ${state.sessionId || "-"}`,
+    `turn: ${state.position?.turn || "-"}`,
+    `dice: ${state.position ? `${state.position.dice[0]}-${state.position.dice[1]}` : "-"}`,
+    `backend: ${state.backend || "-"}`,
+    `fallback_active: ${state.fallbackActive === null ? "-" : String(state.fallbackActive)}`,
+    `analyzer_details: ${state.analyzerDetails || "-"}`,
+    `status: ${state.gameOver ? "complete" : state.submittingMove ? "submitting" : state.animating ? "animating" : "ready"}`,
+    `last_feedback: ${state.lastMessage || "-"}`,
+  ];
+  el.debugInfo.textContent = lines.join("\n");
+}
+
+function toggleDebugPanel() {
+  state.debugVisible = !state.debugVisible;
+  renderDebugPanel();
+}
+
+async function loadDebugContext() {
+  try {
+    const [me, analyzer] = await Promise.all([api("/me"), api("/analyzer")]);
+    state.clientId = me.client_id || null;
+    state.backend = analyzer.backend || null;
+    state.fallbackActive = Boolean(analyzer.fallback_active);
+    state.analyzerDetails = analyzer.details || null;
+  } catch {
+    // Debug data is optional and should never block gameplay.
+  }
+  renderDebugPanel();
 }
 
 async function refreshLegalMoves() {
@@ -728,6 +777,7 @@ async function loadSession(sessionId) {
 
 async function ensureSession() {
   try {
+    await loadDebugContext();
     const preferredSessionId = readLastSessionId();
     if (preferredSessionId) {
       try {
@@ -868,7 +918,9 @@ async function submitMove() {
       notify(feedback.text || "No move analysis available.");
     } else {
       el.feedback.innerHTML = feedback.html;
+      state.lastMessage = el.feedback.textContent || "Move analyzed.";
       state.lastHumanWinPct = feedback.nextHumanWinPct;
+      renderDebugPanel();
     }
     await refreshLegalMoves();
   } catch (err) {
@@ -901,5 +953,8 @@ async function showTip() {
 
 el.newGameBtn.addEventListener("click", createNewSession);
 el.tipBtn.addEventListener("click", showTip);
+if (el.debugToggle) {
+  el.debugToggle.addEventListener("click", toggleDebugPanel);
+}
 
 ensureSession();
