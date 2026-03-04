@@ -1,11 +1,12 @@
 import os
 import random
 import logging
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from time import perf_counter
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -75,6 +76,47 @@ session_store = SessionStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondat
 analysis_store = AnalysisJobStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
+CLIENT_ID_COOKIE = "gammondator_client_id"
+
+
+@app.middleware("http")
+async def attach_client_identity(request: Request, call_next):
+    client_id = request.cookies.get(CLIENT_ID_COOKIE)
+    needs_cookie = not bool(client_id and client_id.strip())
+    if needs_cookie:
+        client_id = uuid.uuid4().hex
+    request.state.profile_id = str(client_id)
+    response = await call_next(request)
+    if needs_cookie:
+        response.set_cookie(
+            key=CLIENT_ID_COOKIE,
+            value=str(client_id),
+            max_age=60 * 60 * 24 * 365,
+            httponly=True,
+            samesite="lax",
+            secure=False,
+            path="/",
+        )
+    return response
+
+
+def _effective_profile_id(request: Request, provided: str | None) -> str:
+    if provided and provided.strip() and provided != "default":
+        return provided.strip()
+    state_profile = getattr(request.state, "profile_id", None)
+    if isinstance(state_profile, str) and state_profile.strip():
+        return state_profile.strip()
+    return "default"
+
+
+def _owned_session_state(request: Request, session_id: int) -> dict[str, object]:
+    state = session_store.get_session(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+    profile_id = _effective_profile_id(request, None)
+    if str(state["profile_id"]) != profile_id:
+        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+    return state
 
 
 @app.get("/health")
@@ -303,8 +345,9 @@ def cleanup_analysis_jobs_endpoint(
 
 
 @app.post("/sessions", response_model=SessionStateResponse)
-def create_session_endpoint(payload: SessionCreateRequest) -> SessionStateResponse:
-    created = session_store.create_session(payload.initial_position, profile_id=payload.profile_id)
+def create_session_endpoint(request: Request, payload: SessionCreateRequest) -> SessionStateResponse:
+    profile_id = _effective_profile_id(request, payload.profile_id)
+    created = session_store.create_session(payload.initial_position, profile_id=profile_id)
     return SessionStateResponse(
         session_id=int(created["session_id"]),
         profile_id=str(created["profile_id"]),
@@ -315,17 +358,19 @@ def create_session_endpoint(payload: SessionCreateRequest) -> SessionStateRespon
 
 
 @app.get("/sessions", response_model=SessionListResponse)
-def list_sessions_endpoint(profile_id: str = "default", status: str | None = None) -> SessionListResponse:
-    sessions = session_store.list_sessions(profile_id=profile_id, status=status)
+def list_sessions_endpoint(
+    request: Request,
+    profile_id: str = "default",
+    status: str | None = None,
+) -> SessionListResponse:
+    resolved_profile_id = _effective_profile_id(request, profile_id)
+    sessions = session_store.list_sessions(profile_id=resolved_profile_id, status=status)
     return SessionListResponse(sessions=[SessionStateResponse.model_validate(s) for s in sessions])
 
 
 @app.get("/sessions/{session_id}", response_model=SessionStateResponse)
-def get_session_endpoint(session_id: int) -> SessionStateResponse:
-    state = session_store.get_session(session_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
-
+def get_session_endpoint(request: Request, session_id: int) -> SessionStateResponse:
+    state = _owned_session_state(request, session_id)
     return SessionStateResponse(
         session_id=int(state["session_id"]),
         profile_id=str(state["profile_id"]),
@@ -336,8 +381,9 @@ def get_session_endpoint(session_id: int) -> SessionStateResponse:
 
 
 @app.post("/sessions/{session_id}/close", response_model=SessionCloseResponse)
-def close_session_endpoint(session_id: int) -> SessionCloseResponse:
+def close_session_endpoint(request: Request, session_id: int) -> SessionCloseResponse:
     try:
+        _owned_session_state(request, session_id)
         closed = session_store.close_session(session_id)
         return SessionCloseResponse(session_id=int(closed["session_id"]), status=str(closed["status"]))
     except ValueError as exc:
@@ -345,11 +391,8 @@ def close_session_endpoint(session_id: int) -> SessionCloseResponse:
 
 
 @app.post("/sessions/{session_id}/roll", response_model=SessionRollResponse)
-def roll_session_dice_endpoint(session_id: int) -> SessionRollResponse:
-    state = session_store.get_session(session_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
-
+def roll_session_dice_endpoint(request: Request, session_id: int) -> SessionRollResponse:
+    state = _owned_session_state(request, session_id)
     dice = (random.randint(1, 6), random.randint(1, 6))
     pos = state["current_position"]
     rolled_position = pos.model_copy(update={"dice": dice})
@@ -365,8 +408,9 @@ def roll_session_dice_endpoint(session_id: int) -> SessionRollResponse:
 
 
 @app.get("/sessions/{session_id}/report", response_model=SessionReportResponse)
-def session_report_endpoint(session_id: int, top_n: int = 5) -> SessionReportResponse:
+def session_report_endpoint(request: Request, session_id: int, top_n: int = 5) -> SessionReportResponse:
     try:
+        _owned_session_state(request, session_id)
         report = session_store.session_report(session_id=session_id, top_n=top_n)
         return SessionReportResponse.model_validate(report)
     except ValueError as exc:
@@ -375,11 +419,13 @@ def session_report_endpoint(session_id: int, top_n: int = 5) -> SessionReportRes
 
 @app.get("/sessions/{session_id}/turns", response_model=SessionTurnListResponse)
 def session_turns_endpoint(
+    request: Request,
     session_id: int,
     limit: int = 200,
     actor: str | None = None,
 ) -> SessionTurnListResponse:
     try:
+        _owned_session_state(request, session_id)
         actor_filter = _normalize_turn_actor(actor)
         turns = session_store.list_turns(session_id=session_id, limit=limit, actor=actor_filter)
         return SessionTurnListResponse(
@@ -391,8 +437,9 @@ def session_turns_endpoint(
 
 
 @app.get("/sessions/{session_id}/turns/{turn_id}/replay", response_model=SessionTurnReplayResponse)
-def session_turn_replay_endpoint(session_id: int, turn_id: int) -> SessionTurnReplayResponse:
+def session_turn_replay_endpoint(request: Request, session_id: int, turn_id: int) -> SessionTurnReplayResponse:
     try:
+        _owned_session_state(request, session_id)
         replay = session_store.get_turn_replay(session_id=session_id, turn_id=turn_id)
         return SessionTurnReplayResponse.model_validate(replay)
     except ValueError as exc:
@@ -401,11 +448,13 @@ def session_turn_replay_endpoint(session_id: int, turn_id: int) -> SessionTurnRe
 
 @app.get("/sessions/{session_id}/turns/markdown", response_class=PlainTextResponse)
 def session_turns_markdown_endpoint(
+    request: Request,
     session_id: int,
     limit: int = 200,
     actor: str | None = None,
 ) -> str:
     turns_response = session_turns_endpoint(
+        request=request,
         session_id=session_id,
         limit=limit,
         actor=_normalize_turn_actor(actor),
@@ -785,12 +834,11 @@ def analyze_position_endpoint(payload: AnalyzePositionRequest) -> AnalyzePositio
 
 @app.post("/sessions/{session_id}/play-turn", response_model=SessionPlayTurnResponse)
 def play_session_turn_endpoint(
+    request: Request,
     session_id: int,
     payload: SessionPlayTurnRequest,
 ) -> SessionPlayTurnResponse:
-    state = session_store.get_session(session_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+    state = _owned_session_state(request, session_id)
     if str(state["status"]) != "active":
         raise HTTPException(status_code=400, detail=f"session {session_id} is not active")
 
@@ -913,12 +961,11 @@ def play_session_turn_endpoint(
 
 @app.post("/sessions/{session_id}/ai-turn", response_model=SessionAIMoveResponse)
 def play_session_ai_turn_endpoint(
+    request: Request,
     session_id: int,
     payload: SessionAIMoveRequest,
 ) -> SessionAIMoveResponse:
-    state = session_store.get_session(session_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail=f"session {session_id} not found")
+    state = _owned_session_state(request, session_id)
     if str(state["status"]) != "active":
         raise HTTPException(status_code=400, detail=f"session {session_id} is not active")
 

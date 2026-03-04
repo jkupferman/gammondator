@@ -58,26 +58,12 @@ button:disabled {
 }
 
 .status-bar,
-.game-over-panel,
 .board-panel,
 .feedback-panel {
   background: var(--panel);
   border: 2px solid rgba(0, 0, 0, 0.12);
   border-radius: 12px;
   padding: 10px 12px;
-}
-
-.game-over-panel {
-  display: grid;
-  gap: 6px;
-}
-
-.game-over-panel h2 {
-  margin: 0;
-}
-
-.game-over-panel p {
-  margin: 0;
 }
 
 .status-bar {

@@ -32,10 +32,6 @@ const el = {
   offColumn: document.getElementById("offColumn"),
   moveStatus: document.getElementById("moveStatus"),
   feedback: document.getElementById("feedback"),
-  gameOverPanel: document.getElementById("gameOverPanel"),
-  gameOverTitle: document.getElementById("gameOverTitle"),
-  gameOverBody: document.getElementById("gameOverBody"),
-  gameOverNewGameBtn: document.getElementById("gameOverNewGameBtn"),
 };
 
 function notify(message, isError = false) {
@@ -187,20 +183,6 @@ function renderStatus() {
     state.animating ||
     !state.legalMovesLoaded ||
     state.legalMoves.length === 0;
-}
-
-function renderGameOverPanel() {
-  if (!el.gameOverPanel || !el.gameOverTitle || !el.gameOverBody) return;
-  if (!state.gameOver || !state.winner) {
-    el.gameOverPanel.hidden = true;
-    return;
-  }
-  const won = state.winner === HUMAN_SIDE;
-  el.gameOverTitle.textContent = won ? "You won" : "White won";
-  el.gameOverBody.textContent = won
-    ? "Session complete. Start a new game to keep training."
-    : "Session complete. Start a new game for another training round.";
-  el.gameOverPanel.hidden = false;
 }
 
 async function animateMoveReplay(startPosition, steps, finalPosition) {
@@ -648,7 +630,6 @@ function renderBoard() {
 function render() {
   renderStatus();
   renderBoard();
-  renderGameOverPanel();
 }
 
 async function refreshLegalMoves() {
@@ -697,7 +678,7 @@ async function createNewSession() {
   try {
     const created = await api("/sessions", {
       method: "POST",
-      body: JSON.stringify({ initial_position: startingPosition(), profile_id: "default" }),
+      body: JSON.stringify({ initial_position: startingPosition() }),
     });
     state.sessionId = created.session_id;
     saveLastSessionId(state.sessionId);
@@ -760,7 +741,7 @@ async function ensureSession() {
         clearLastSessionId();
       }
     }
-    const sessions = await api("/sessions?profile_id=default&status=active");
+    const sessions = await api("/sessions?status=active");
     const active = Array.isArray(sessions.sessions) ? sessions.sessions : [];
     if (active.length > 0) {
       await loadSession(active[0].session_id);
@@ -920,8 +901,5 @@ async function showTip() {
 
 el.newGameBtn.addEventListener("click", createNewSession);
 el.tipBtn.addEventListener("click", showTip);
-if (el.gameOverNewGameBtn) {
-  el.gameOverNewGameBtn.addEventListener("click", createNewSession);
-}
 
 ensureSession();

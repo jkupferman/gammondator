@@ -72,7 +72,8 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert create_response.status_code == 200
     created = create_response.json()
     session_id = created["session_id"]
-    assert created["profile_id"] == "default"
+    assert isinstance(created["profile_id"], str)
+    assert created["profile_id"]
     assert created["move_count"] == 0
     assert created["current_position"]["turn"] == "white"
 
@@ -80,7 +81,7 @@ def test_session_lifecycle_and_play_turn() -> None:
     assert get_response.status_code == 200
     state = get_response.json()
     assert state["session_id"] == session_id
-    assert state["profile_id"] == "default"
+    assert state["profile_id"] == created["profile_id"]
     assert state["move_count"] == 0
 
     play_response = client.post(
@@ -467,7 +468,13 @@ def test_session_turns_actor_filter() -> None:
 
 
 def test_session_turns_actor_filter_rejects_invalid_value() -> None:
-    response = client.get("/sessions/1/turns?actor=robot")
+    create_response = client.post(
+        "/sessions",
+        json={"initial_position": SAMPLE_PAYLOAD["position"]},
+    )
+    assert create_response.status_code == 200
+    session_id = create_response.json()["session_id"]
+    response = client.get(f"/sessions/{session_id}/turns?actor=robot")
     assert response.status_code == 400
     assert "actor must be one of" in response.json()["detail"]
 
@@ -514,6 +521,25 @@ def test_list_sessions_by_profile() -> None:
     assert beta.status_code == 200
     assert all(s["profile_id"] == "alpha" for s in alpha.json()["sessions"])
     assert all(s["profile_id"] == "beta" for s in beta.json()["sessions"])
+
+
+def test_sessions_are_isolated_by_browser_cookie_identity() -> None:
+    client_a = TestClient(app)
+    client_b = TestClient(app)
+
+    create_a = client_a.post("/sessions", json={"initial_position": SAMPLE_PAYLOAD["position"]})
+    assert create_a.status_code == 200
+    session_id_a = create_a.json()["session_id"]
+
+    list_a = client_a.get("/sessions?status=active")
+    list_b = client_b.get("/sessions?status=active")
+    assert list_a.status_code == 200
+    assert list_b.status_code == 200
+    assert any(s["session_id"] == session_id_a for s in list_a.json()["sessions"])
+    assert all(s["session_id"] != session_id_a for s in list_b.json()["sessions"])
+
+    stolen = client_b.get(f"/sessions/{session_id_a}")
+    assert stolen.status_code == 404
 
 
 def test_analyze_move_returns_ranked_feedback() -> None:

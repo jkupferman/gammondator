@@ -186,7 +186,7 @@ Create a session with an initial position:
 ```bash
 curl -X POST 'http://127.0.0.1:8000/sessions' \
   -H 'Content-Type: application/json' \
-  -d '{ "initial_position": { ...position payload... }, "profile_id": "default" }'
+  -d '{ "initial_position": { ...position payload... } }'
 ```
 
 Play a turn in that session (rate move, advance board, set next dice):
@@ -424,5 +424,7 @@ export GAMMONDATOR_DB_PATH='/absolute/path/to/gammondator.db'
 
 - Endpoints that accept user-provided moves now enforce strict legality for the supplied `position + dice`.
 - Session turn endpoints auto-roll next dice when `next_dice` is omitted.
-- Training and session history are profile-scoped via `profile_id` (default is `default`).
+- Session APIs are browser-scoped by anonymous cookie (`gammondator_client_id`) with no login required.
+- Session ownership is enforced per browser identity; cross-browser session ID access is rejected.
+- Training and analysis endpoints remain profile-scoped via `profile_id` query/body fields.
 - GNUbg backend can automatically fall back to heuristic backend per request when enabled.
