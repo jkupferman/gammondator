@@ -27,11 +27,42 @@ const state = {
 };
 
 const LAST_SESSION_KEY = "gammondator.lastSessionId";
+const RECORD_KEY = "gammondator.record";
+
+function disableSoundEffects() {
+  const mediaProto = window.HTMLMediaElement && window.HTMLMediaElement.prototype;
+  if (mediaProto && !mediaProto.__gammondatorMuted) {
+    mediaProto.__gammondatorMuted = true;
+    mediaProto.play = function playMutedMedia() {
+      this.muted = true;
+      this.volume = 0;
+      return Promise.resolve();
+    };
+  }
+
+  const audioContextNames = ["AudioContext", "webkitAudioContext"];
+  for (const name of audioContextNames) {
+    const Original = window[name];
+    if (!Original || Original.__gammondatorMuted) continue;
+    const MutedAudioContext = function mutedAudioContext(...args) {
+      const ctx = new Original(...args);
+      if (typeof ctx.suspend === "function") {
+        ctx.suspend().catch(() => {});
+      }
+      return ctx;
+    };
+    MutedAudioContext.prototype = Original.prototype;
+    MutedAudioContext.__gammondatorMuted = true;
+    window[name] = MutedAudioContext;
+  }
+}
+
+disableSoundEffects();
 
 const el = {
   newGameBtn: document.getElementById("newGameBtn"),
   tipBtn: document.getElementById("tipBtn"),
-  sessionStatus: document.getElementById("sessionStatus"),
+  recordStatus: document.getElementById("recordStatus"),
   turnStatus: document.getElementById("turnStatus"),
   diceStatus: document.getElementById("diceStatus"),
   boardGrid: document.getElementById("boardGrid"),
@@ -64,6 +95,26 @@ function clearLastSessionId() {
   window.localStorage.removeItem(LAST_SESSION_KEY);
 }
 
+function readRecord() {
+  const raw = window.localStorage.getItem(RECORD_KEY);
+  if (!raw) return { wins: 0, losses: 0 };
+  try {
+    const parsed = JSON.parse(raw);
+    const wins = Number(parsed.wins || 0);
+    const losses = Number(parsed.losses || 0);
+    return {
+      wins: Number.isFinite(wins) ? Math.max(0, Math.floor(wins)) : 0,
+      losses: Number.isFinite(losses) ? Math.max(0, Math.floor(losses)) : 0,
+    };
+  } catch {
+    return { wins: 0, losses: 0 };
+  }
+}
+
+function writeRecord(record) {
+  window.localStorage.setItem(RECORD_KEY, JSON.stringify(record));
+}
+
 function terminalWinner(position) {
   if (!position) return null;
   if ((position.off_black || 0) >= 15) return "black";
@@ -83,6 +134,13 @@ async function handleGameOver(winner) {
   render();
 
   const won = winner === HUMAN_SIDE;
+  const record = readRecord();
+  if (won) {
+    record.wins += 1;
+  } else {
+    record.losses += 1;
+  }
+  writeRecord(record);
   notify(won ? "Game complete: You won. Click New Game to play again." : "Game complete: White won. Click New Game to play again.");
   if (readLastSessionId() === state.sessionId) {
     clearLastSessionId();
@@ -154,8 +212,10 @@ function startingPosition() {
 }
 
 function renderStatus() {
+  const record = readRecord();
+  el.recordStatus.textContent = `Record: ${record.wins}-${record.losses}`;
+
   if (!state.sessionId || !state.position) {
-    el.sessionStatus.textContent = "Game: starting";
     el.turnStatus.textContent = "Turn: -";
     el.diceStatus.textContent = "Dice: -";
     el.moveStatus.textContent = "Starting up...";
@@ -163,8 +223,8 @@ function renderStatus() {
     return;
   }
 
-  el.sessionStatus.textContent = state.gameOver ? "Game: complete" : "Game: in progress";
-  el.turnStatus.textContent = `Turn: ${state.position.turn}`;
+  const turnLabel = state.position.turn === HUMAN_SIDE ? "Your turn" : "White turn";
+  el.turnStatus.textContent = `Turn: ${turnLabel}`;
   el.diceStatus.innerHTML = renderDiceReadout(state.position.dice[0], state.position.dice[1]);
 
   let statusText = "Your turn (black). Select checker to move.";

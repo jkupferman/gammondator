@@ -1,64 +1,117 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 
+from app.db import Database
 from app.schemas import AnalyzeMoveResponse, Move, Position
 
 
 class SessionStore:
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        self.db = Database(db_path)
         self._init_schema()
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _connect(self):
+        return self.db.connect()
+
+    @staticmethod
+    def _extract_column_name(row) -> str:
+        if isinstance(row, dict):
+            return str(row.get("column_name", ""))
+        return str(row[1])
+
+    def _table_columns(self, conn, table_name: str) -> set[str]:
+        if conn.is_postgres:
+            rows = conn.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = ?
+                """,
+                (table_name,),
+            ).fetchall()
+            return {str(row["column_name"]) for row in rows}
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+        return {self._extract_column_name(row) for row in rows}
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    profile_id TEXT NOT NULL DEFAULT 'default',
-                    status TEXT NOT NULL,
-                    move_count INTEGER NOT NULL DEFAULT 0,
-                    current_position_json TEXT NOT NULL
+            if conn.is_postgres:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        id BIGSERIAL PRIMARY KEY,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        profile_id TEXT NOT NULL DEFAULT 'default',
+                        status TEXT NOT NULL,
+                        move_count INTEGER NOT NULL DEFAULT 0,
+                        current_position_json TEXT NOT NULL
+                    )
+                    """
                 )
-                """
-            )
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)")}
+            else:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        profile_id TEXT NOT NULL DEFAULT 'default',
+                        status TEXT NOT NULL,
+                        move_count INTEGER NOT NULL DEFAULT 0,
+                        current_position_json TEXT NOT NULL
+                    )
+                    """
+                )
+            columns = self._table_columns(conn, "sessions")
             if "profile_id" not in columns:
                 conn.execute(
                     "ALTER TABLE sessions ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'default'"
                 )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS session_turns (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id INTEGER NOT NULL,
-                    created_at TEXT NOT NULL,
-                    turn TEXT NOT NULL,
-                    actor TEXT NOT NULL DEFAULT 'human',
-                    dice_json TEXT,
-                    previous_position_json TEXT,
-                    played_move_json TEXT,
-                    played_notation TEXT NOT NULL,
-                    quality TEXT NOT NULL,
-                    equity_loss REAL NOT NULL,
-                    analysis_json TEXT NOT NULL,
-                    FOREIGN KEY(session_id) REFERENCES sessions(id)
+            if conn.is_postgres:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS session_turns (
+                        id BIGSERIAL PRIMARY KEY,
+                        session_id BIGINT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        turn TEXT NOT NULL,
+                        actor TEXT NOT NULL DEFAULT 'human',
+                        dice_json TEXT,
+                        previous_position_json TEXT,
+                        played_move_json TEXT,
+                        played_notation TEXT NOT NULL,
+                        quality TEXT NOT NULL,
+                        equity_loss REAL NOT NULL,
+                        analysis_json TEXT NOT NULL,
+                        FOREIGN KEY(session_id) REFERENCES sessions(id)
+                    )
+                    """
                 )
-                """
-            )
-            turn_columns = {row[1] for row in conn.execute("PRAGMA table_info(session_turns)")}
+            else:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS session_turns (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_id INTEGER NOT NULL,
+                        created_at TEXT NOT NULL,
+                        turn TEXT NOT NULL,
+                        actor TEXT NOT NULL DEFAULT 'human',
+                        dice_json TEXT,
+                        previous_position_json TEXT,
+                        played_move_json TEXT,
+                        played_notation TEXT NOT NULL,
+                        quality TEXT NOT NULL,
+                        equity_loss REAL NOT NULL,
+                        analysis_json TEXT NOT NULL,
+                        FOREIGN KEY(session_id) REFERENCES sessions(id)
+                    )
+                    """
+                )
+            turn_columns = self._table_columns(conn, "session_turns")
             if "actor" not in turn_columns:
                 conn.execute(
                     "ALTER TABLE session_turns ADD COLUMN actor TEXT NOT NULL DEFAULT 'human'"
@@ -69,27 +122,43 @@ class SessionStore:
                 conn.execute("ALTER TABLE session_turns ADD COLUMN previous_position_json TEXT")
             if "played_move_json" not in turn_columns:
                 conn.execute("ALTER TABLE session_turns ADD COLUMN played_move_json TEXT")
-            conn.commit()
 
     def create_session(self, initial_position: Position, profile_id: str = "default") -> dict[str, object]:
         now = datetime.now(tz=timezone.utc).isoformat()
         with self._connect() as conn:
-            cursor = conn.execute(
-                """
-                INSERT INTO sessions (
-                    created_at,
-                    updated_at,
-                    profile_id,
-                    status,
-                    move_count,
-                    current_position_json
+            if conn.is_postgres:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO sessions (
+                        created_at,
+                        updated_at,
+                        profile_id,
+                        status,
+                        move_count,
+                        current_position_json
+                    )
+                    VALUES (?, ?, ?, 'active', 0, ?)
+                    RETURNING id
+                    """,
+                    (now, now, profile_id, json.dumps(initial_position.model_dump())),
                 )
-                VALUES (?, ?, ?, 'active', 0, ?)
-                """,
-                (now, now, profile_id, json.dumps(initial_position.model_dump())),
-            )
-            conn.commit()
-            session_id = int(cursor.lastrowid)
+                session_id = int(cursor.fetchone()["id"])
+            else:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO sessions (
+                        created_at,
+                        updated_at,
+                        profile_id,
+                        status,
+                        move_count,
+                        current_position_json
+                    )
+                    VALUES (?, ?, ?, 'active', 0, ?)
+                    """,
+                    (now, now, profile_id, json.dumps(initial_position.model_dump())),
+                )
+                session_id = int(cursor.lastrowid)
 
         return {
             "session_id": session_id,
@@ -217,7 +286,6 @@ class SessionStore:
                     analysis.model_dump_json(),
                 ),
             )
-            conn.commit()
 
         return {
             "session_id": session_id,
@@ -335,7 +403,6 @@ class SessionStore:
                 """,
                 (now, json.dumps(position.model_dump()), session_id),
             )
-            conn.commit()
 
         return {
             "session_id": int(row["id"]),
@@ -357,7 +424,6 @@ class SessionStore:
                 "UPDATE sessions SET status = 'completed', updated_at = ? WHERE id = ?",
                 (now, session_id),
             )
-            conn.commit()
 
         return {"session_id": int(row["id"]), "status": "completed"}
 

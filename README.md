@@ -50,6 +50,12 @@ Editable package install is also supported:
 python -m pip install -e '.[dev]'
 ```
 
+## Heroku Notes
+
+- `Procfile` is included: `web: uvicorn app.main:app --host=0.0.0.0 --port=${PORT:-8000}`
+- Provision Heroku Postgres and set `DATABASE_URL` (automatically provided by Heroku).
+- App will use Postgres when `DATABASE_URL` is present, otherwise SQLite locally.
+
 ## Development Workflow
 
 Run tests:
@@ -411,14 +417,22 @@ Bridge contract:
 
 ## Training Store
 
-Recorded training data is stored in a local SQLite database.
+Recorded session/training/job data is stored in SQLite locally or Postgres when configured.
 
-- Default path: `gammondator.db`
-- Override with env var:
+- Local default (SQLite): `gammondator.db`
+- Local override:
 
 ```bash
 export GAMMONDATOR_DB_PATH='/absolute/path/to/gammondator.db'
 ```
+
+- Production/Postgres (recommended on Heroku):
+
+```bash
+export DATABASE_URL='postgresql://...'
+```
+
+`DATABASE_URL` takes precedence over `GAMMONDATOR_DB_PATH`.
 
 ## Notes
 

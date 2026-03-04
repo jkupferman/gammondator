@@ -1,42 +1,70 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 
+from app.db import Database
 from app.schemas import AnalysisJobCreateRequest
 
 
 class AnalysisJobStore:
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        self.db = Database(db_path)
         self._init_schema()
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _connect(self):
+        return self.db.connect()
+
+    def _table_columns(self, conn, table_name: str) -> set[str]:
+        if conn.is_postgres:
+            rows = conn.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = ?
+                """,
+                (table_name,),
+            ).fetchall()
+            return {str(row["column_name"]) for row in rows}
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+        return {str(row[1]) for row in rows}
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS analysis_jobs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    profile_id TEXT NOT NULL DEFAULT 'default',
-                    analysis_mode TEXT NOT NULL DEFAULT 'standard',
-                    status TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    request_json TEXT NOT NULL,
-                    result_json TEXT,
-                    error TEXT
+            if conn.is_postgres:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS analysis_jobs (
+                        id BIGSERIAL PRIMARY KEY,
+                        profile_id TEXT NOT NULL DEFAULT 'default',
+                        analysis_mode TEXT NOT NULL DEFAULT 'standard',
+                        status TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        request_json TEXT NOT NULL,
+                        result_json TEXT,
+                        error TEXT
+                    )
+                    """
                 )
-                """
-            )
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(analysis_jobs)")}
+            else:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS analysis_jobs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        profile_id TEXT NOT NULL DEFAULT 'default',
+                        analysis_mode TEXT NOT NULL DEFAULT 'standard',
+                        status TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        request_json TEXT NOT NULL,
+                        result_json TEXT,
+                        error TEXT
+                    )
+                    """
+                )
+            columns = self._table_columns(conn, "analysis_jobs")
             if "profile_id" not in columns:
                 conn.execute(
                     "ALTER TABLE analysis_jobs ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'default'"
@@ -45,7 +73,6 @@ class AnalysisJobStore:
                 conn.execute(
                     "ALTER TABLE analysis_jobs ADD COLUMN analysis_mode TEXT NOT NULL DEFAULT 'standard'"
                 )
-            conn.commit()
 
     def create_job(self, request: AnalysisJobCreateRequest) -> int:
         now = datetime.now(tz=timezone.utc).isoformat()
@@ -62,7 +89,8 @@ class AnalysisJobStore:
                     result_json,
                     error
                 ) VALUES (?, ?, 'pending', ?, ?, ?, NULL, NULL)
-                """,
+                """
+                + (" RETURNING id" if conn.is_postgres else ""),
                 (
                     request.profile_id,
                     request.analysis_mode,
@@ -71,7 +99,8 @@ class AnalysisJobStore:
                     request.model_dump_json(),
                 ),
             )
-            conn.commit()
+            if conn.is_postgres:
+                return int(cursor.fetchone()["id"])
             return int(cursor.lastrowid)
 
     def list_jobs(self, profile_id: str = "default", status: str | None = None, limit: int = 50) -> list[dict[str, object]]:
@@ -138,7 +167,6 @@ class AnalysisJobStore:
                 "UPDATE analysis_jobs SET status = 'running', updated_at = ?, error = NULL WHERE id = ?",
                 (now, job_id),
             )
-            conn.commit()
 
     def mark_completed(self, job_id: int, result_json: str) -> None:
         now = datetime.now(tz=timezone.utc).isoformat()
@@ -151,7 +179,6 @@ class AnalysisJobStore:
                 """,
                 (now, result_json, job_id),
             )
-            conn.commit()
 
     def mark_failed(self, job_id: int, error: str) -> None:
         now = datetime.now(tz=timezone.utc).isoformat()
@@ -164,7 +191,6 @@ class AnalysisJobStore:
                 """,
                 (now, error, job_id),
             )
-            conn.commit()
 
     def stats(self, profile_id: str = "default") -> dict[str, int]:
         with self._connect() as conn:
@@ -208,13 +234,11 @@ class AnalysisJobStore:
                     """,
                     (profile_id,),
                 )
-            conn.commit()
             return int(cursor.rowcount)
 
     def delete_job(self, job_id: int) -> int:
         with self._connect() as conn:
             cursor = conn.execute("DELETE FROM analysis_jobs WHERE id = ?", (job_id,))
-            conn.commit()
             return int(cursor.rowcount)
 
     def reset_to_pending(self, job_id: int) -> dict[str, object]:
@@ -231,14 +255,13 @@ class AnalysisJobStore:
                 """,
                 (now, job_id),
             )
-            conn.commit()
 
         refreshed = self.get_job(job_id)
         assert refreshed is not None
         return refreshed
 
     @staticmethod
-    def _row_to_dict(row: sqlite3.Row) -> dict[str, object]:
+    def _row_to_dict(row) -> dict[str, object]:
         return {
             "job_id": int(row["id"]),
             "profile_id": str(row["profile_id"]),

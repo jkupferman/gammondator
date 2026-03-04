@@ -15,6 +15,7 @@ from app.analysis import apply_move_to_position
 from app.analysis_jobs import AnalysisJobStore
 from app.backends import BackendUnavailableError, GnuBGBridgeBackend, load_backend
 from app.cube import evaluate_cube_decision
+from app.db import resolve_db_dsn
 from app.movegen import generate_legal_moves, is_legal_move, legal_move_signatures, move_signature
 from app.session_store import SessionStore
 from app.schemas import (
@@ -72,9 +73,10 @@ from app.training_store import TrainingStore
 app = FastAPI(title="Gammondator API", version="0.1.0")
 logger = logging.getLogger(__name__)
 runtime = load_backend()
-training_store = TrainingStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
-session_store = SessionStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
-analysis_store = AnalysisJobStore(db_path=os.getenv("GAMMONDATOR_DB_PATH", "gammondator.db"))
+DB_DSN = resolve_db_dsn("gammondator.db")
+training_store = TrainingStore(db_path=DB_DSN)
+session_store = SessionStore(db_path=DB_DSN)
+analysis_store = AnalysisJobStore(db_path=DB_DSN)
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
 CLIENT_ID_COOKIE = "gammondator_client_id"

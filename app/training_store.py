@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 
+from app.db import Database
 from app.schemas import AnalyzeMoveResponse, Position
 
 
@@ -35,37 +34,71 @@ def _classify_leak_category(why_messages: list[str]) -> str:
 class TrainingStore:
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        self.db = Database(db_path)
         self._init_schema()
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _connect(self):
+        return self.db.connect()
+
+    def _table_columns(self, conn, table_name: str) -> set[str]:
+        if conn.is_postgres:
+            rows = conn.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = ?
+                """,
+                (table_name,),
+            ).fetchall()
+            return {str(row["column_name"]) for row in rows}
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+        return {str(row[1]) for row in rows}
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS move_reviews (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    created_at TEXT NOT NULL,
-                    profile_id TEXT NOT NULL DEFAULT 'default',
-                    turn TEXT NOT NULL,
-                    dice_1 INTEGER NOT NULL,
-                    dice_2 INTEGER NOT NULL,
-                    played_notation TEXT NOT NULL,
-                    best_notation TEXT NOT NULL,
-                    played_equity REAL NOT NULL,
-                    best_equity REAL NOT NULL,
-                    equity_loss REAL NOT NULL,
-                    quality TEXT NOT NULL,
-                    leak_category TEXT NOT NULL DEFAULT 'general',
-                    position_json TEXT NOT NULL
+            if conn.is_postgres:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS move_reviews (
+                        id BIGSERIAL PRIMARY KEY,
+                        created_at TEXT NOT NULL,
+                        profile_id TEXT NOT NULL DEFAULT 'default',
+                        turn TEXT NOT NULL,
+                        dice_1 INTEGER NOT NULL,
+                        dice_2 INTEGER NOT NULL,
+                        played_notation TEXT NOT NULL,
+                        best_notation TEXT NOT NULL,
+                        played_equity REAL NOT NULL,
+                        best_equity REAL NOT NULL,
+                        equity_loss REAL NOT NULL,
+                        quality TEXT NOT NULL,
+                        leak_category TEXT NOT NULL DEFAULT 'general',
+                        position_json TEXT NOT NULL
+                    )
+                    """
                 )
-                """
-            )
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(move_reviews)")}
+            else:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS move_reviews (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        created_at TEXT NOT NULL,
+                        profile_id TEXT NOT NULL DEFAULT 'default',
+                        turn TEXT NOT NULL,
+                        dice_1 INTEGER NOT NULL,
+                        dice_2 INTEGER NOT NULL,
+                        played_notation TEXT NOT NULL,
+                        best_notation TEXT NOT NULL,
+                        played_equity REAL NOT NULL,
+                        best_equity REAL NOT NULL,
+                        equity_loss REAL NOT NULL,
+                        quality TEXT NOT NULL,
+                        leak_category TEXT NOT NULL DEFAULT 'general',
+                        position_json TEXT NOT NULL
+                    )
+                    """
+                )
+            columns = self._table_columns(conn, "move_reviews")
             if "profile_id" not in columns:
                 conn.execute(
                     "ALTER TABLE move_reviews ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'default'"
@@ -74,31 +107,83 @@ class TrainingStore:
                 conn.execute(
                     "ALTER TABLE move_reviews ADD COLUMN leak_category TEXT NOT NULL DEFAULT 'general'"
                 )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS drill_attempts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    created_at TEXT NOT NULL,
-                    profile_id TEXT NOT NULL DEFAULT 'default',
-                    review_id INTEGER NOT NULL,
-                    chosen_notation TEXT NOT NULL,
-                    expected_notation TEXT NOT NULL,
-                    correct INTEGER NOT NULL,
-                    FOREIGN KEY(review_id) REFERENCES move_reviews(id)
+            if conn.is_postgres:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS drill_attempts (
+                        id BIGSERIAL PRIMARY KEY,
+                        created_at TEXT NOT NULL,
+                        profile_id TEXT NOT NULL DEFAULT 'default',
+                        review_id BIGINT NOT NULL,
+                        chosen_notation TEXT NOT NULL,
+                        expected_notation TEXT NOT NULL,
+                        correct INTEGER NOT NULL,
+                        FOREIGN KEY(review_id) REFERENCES move_reviews(id)
+                    )
+                    """
                 )
-                """
-            )
-            drill_columns = {row[1] for row in conn.execute("PRAGMA table_info(drill_attempts)")}
+            else:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS drill_attempts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        created_at TEXT NOT NULL,
+                        profile_id TEXT NOT NULL DEFAULT 'default',
+                        review_id INTEGER NOT NULL,
+                        chosen_notation TEXT NOT NULL,
+                        expected_notation TEXT NOT NULL,
+                        correct INTEGER NOT NULL,
+                        FOREIGN KEY(review_id) REFERENCES move_reviews(id)
+                    )
+                    """
+                )
+            drill_columns = self._table_columns(conn, "drill_attempts")
             if "profile_id" not in drill_columns:
                 conn.execute(
                     "ALTER TABLE drill_attempts ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'default'"
                 )
-            conn.commit()
 
     def record_review(self, position: Position, analysis: AnalyzeMoveResponse, profile_id: str = "default") -> int:
         now = datetime.now(tz=timezone.utc).isoformat()
         leak_category = _classify_leak_category(analysis.played_move.why)
         with self._connect() as conn:
+            if conn.is_postgres:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO move_reviews (
+                        created_at,
+                        profile_id,
+                        turn,
+                        dice_1,
+                        dice_2,
+                        played_notation,
+                        best_notation,
+                        played_equity,
+                        best_equity,
+                        equity_loss,
+                        quality,
+                        leak_category,
+                        position_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    RETURNING id
+                    """,
+                    (
+                        now,
+                        profile_id,
+                        position.turn,
+                        int(position.dice[0]),
+                        int(position.dice[1]),
+                        analysis.played_move.notation,
+                        analysis.best_move.notation,
+                        float(analysis.played_move.equity),
+                        float(analysis.best_move.equity),
+                        float(analysis.played_move.delta_vs_best),
+                        analysis.played_move.quality,
+                        leak_category,
+                        json.dumps(position.model_dump()),
+                    ),
+                )
+                return int(cursor.fetchone()["id"])
             cursor = conn.execute(
                 """
                 INSERT INTO move_reviews (
@@ -133,7 +218,6 @@ class TrainingStore:
                     json.dumps(position.model_dump()),
                 ),
             )
-            conn.commit()
             return int(cursor.lastrowid)
 
     def summary(self, profile_id: str = "default") -> TrainingSummary:
@@ -321,11 +405,14 @@ class TrainingStore:
                     expected_notation,
                     correct
                 ) VALUES (?, ?, ?, ?, ?, ?)
-                """,
+                """
+                + (" RETURNING id" if conn.is_postgres else ""),
                 (now, profile_id, review_id, chosen_notation.strip(), expected_notation, correct),
             )
-            conn.commit()
-            attempt_id = int(cursor.lastrowid)
+            if conn.is_postgres:
+                attempt_id = int(cursor.fetchone()["id"])
+            else:
+                attempt_id = int(cursor.lastrowid)
 
         return {
             "attempt_id": attempt_id,
