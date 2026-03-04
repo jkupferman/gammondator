@@ -92,6 +92,10 @@ class AnalyzerInfoResponse(BaseModel):
     details: str
 
 
+class ClientIdentityResponse(BaseModel):
+    client_id: str
+
+
 class LegalMovesRequest(BaseModel):
     position: Position
 

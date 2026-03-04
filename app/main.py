@@ -23,6 +23,7 @@ from app.schemas import (
     AnalyzeMoveRequest,
     AnalyzeMoveResponse,
     AnalyzerInfoResponse,
+    ClientIdentityResponse,
     AnalysisJobCreateRequest,
     AnalysisJobBatchRunResponse,
     AnalysisJobCleanupResponse,
@@ -122,6 +123,11 @@ def _owned_session_state(request: Request, session_id: int) -> dict[str, object]
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "backend": runtime.backend.name}
+
+
+@app.get("/me", response_model=ClientIdentityResponse)
+def me_endpoint(request: Request) -> ClientIdentityResponse:
+    return ClientIdentityResponse(client_id=_effective_profile_id(request, None))
 
 
 @app.get("/")

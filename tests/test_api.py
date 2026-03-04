@@ -58,6 +58,27 @@ def test_health() -> None:
     assert response.json() == {"status": "ok", "backend": "heuristic"}
 
 
+def test_me_endpoint_returns_stable_browser_identity() -> None:
+    client_a = TestClient(app)
+    client_b = TestClient(app)
+
+    me_a_first = client_a.get("/me")
+    me_a_second = client_a.get("/me")
+    me_b = client_b.get("/me")
+
+    assert me_a_first.status_code == 200
+    assert me_a_second.status_code == 200
+    assert me_b.status_code == 200
+
+    a_id_first = me_a_first.json()["client_id"]
+    a_id_second = me_a_second.json()["client_id"]
+    b_id = me_b.json()["client_id"]
+
+    assert isinstance(a_id_first, str) and a_id_first
+    assert a_id_first == a_id_second
+    assert a_id_first != b_id
+
+
 def test_web_index() -> None:
     response = client.get("/")
     assert response.status_code == 200
