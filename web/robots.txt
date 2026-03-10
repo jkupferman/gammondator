@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://gammondator-e37bda20353e.herokuapp.com/sitemap.xml

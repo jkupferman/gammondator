@@ -136,6 +136,16 @@ def web_index() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
 
 
+@app.get("/robots.txt")
+def robots_txt() -> FileResponse:
+    return FileResponse(WEB_DIR / "robots.txt", media_type="text/plain")
+
+
+@app.get("/sitemap.xml")
+def sitemap_xml() -> FileResponse:
+    return FileResponse(WEB_DIR / "sitemap.xml", media_type="application/xml")
+
+
 @app.get("/analyzer", response_model=AnalyzerInfoResponse)
 def analyzer_info() -> AnalyzerInfoResponse:
     return AnalyzerInfoResponse(
