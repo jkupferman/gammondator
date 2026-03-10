@@ -65,6 +65,7 @@ class AnalyzeMoveRequest(BaseModel):
 class MoveScore(BaseModel):
     notation: str
     equity: float
+    win_pct: float | None = None
     delta_vs_best: float
     quality: Literal["excellent", "good", "inaccuracy", "mistake", "blunder"]
     why: list[str]

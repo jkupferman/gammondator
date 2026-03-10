@@ -21,13 +21,16 @@ def main() -> int:
     payload = AnalyzeMoveRequest.model_validate_json(raw)
 
     equities: dict[str, float] = {}
+    win_pcts: dict[str, float] = {}
     for move in payload.candidate_moves:
         state = _apply_move(payload.position, move)
         equity, _ = _evaluate(state, payload.position.turn)
         equities[move.notation] = equity
+        win_pcts[move.notation] = max(0.0, min(100.0, round(50.0 + (equity * 50.0), 3)))
 
     result = {
         "equities": equities,
+        "win_pcts": win_pcts,
         "reasons": {
             notation: ["Stub bridge response. Replace with GNU Backgammon output."]
             for notation in equities

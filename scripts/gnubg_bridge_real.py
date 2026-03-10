@@ -31,6 +31,11 @@ PATTERN_BY_MODE = {
     "1ply": re.compile(r"1-ply cubeless equity\s+([+-]?\d+(?:\.\d+)?)"),
     "2ply": re.compile(r"2-ply cubeless equity\s+([+-]?\d+(?:\.\d+)?)"),
 }
+WIN_PCT_PATTERNS = [
+    re.compile(r"winning chances?\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%", re.IGNORECASE),
+    re.compile(r"win\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%", re.IGNORECASE),
+    re.compile(r"([0-9]+(?:\.[0-9]+)?)\s*%\s*win", re.IGNORECASE),
+]
 
 
 def _cache_init(db_path: str) -> None:
@@ -87,7 +92,9 @@ def _state_to_simple_board_numbers(state) -> list[int]:
     return [state.bar_white, *state.points, state.bar_black]
 
 
-def _eval_position_with_gnubg(simple_numbers: list[int], mode: str, timeout_seconds: float) -> float:
+def _eval_position_with_gnubg(
+    simple_numbers: list[int], mode: str, timeout_seconds: float
+) -> tuple[float, str]:
     gnubg_bin = os.getenv("GNUBG_BIN", "/opt/local/bin/gnubg")
     board_args = " ".join(str(value) for value in simple_numbers)
     commands = "\n".join(
@@ -121,7 +128,17 @@ def _eval_position_with_gnubg(simple_numbers: list[int], mode: str, timeout_seco
     if not match:
         raise RuntimeError("failed to parse equity from gnubg output")
 
-    return float(match.group(1))
+    return float(match.group(1)), proc.stdout
+
+
+def _extract_win_pct(output: str) -> float | None:
+    for pattern in WIN_PCT_PATTERNS:
+        match = pattern.search(output)
+        if match:
+            value = float(match.group(1))
+            if 0.0 <= value <= 100.0:
+                return value
+    return None
 
 
 def main() -> int:
@@ -135,6 +152,7 @@ def main() -> int:
         _cache_init(cache_path)
 
     equities: dict[str, float] = {}
+    win_pcts: dict[str, float] = {}
     reasons: dict[str, list[str]] = {}
 
     for move in request.candidate_moves:
@@ -146,20 +164,28 @@ def main() -> int:
         if cached is not None:
             white_equity = cached
             cache_note = "cache hit"
+            white_win_pct = None
         else:
-            white_equity = _eval_position_with_gnubg(simple_numbers, eval_mode, timeout_seconds)
+            white_equity, eval_output = _eval_position_with_gnubg(simple_numbers, eval_mode, timeout_seconds)
+            white_win_pct = _extract_win_pct(eval_output)
             if cache_enabled:
                 _cache_set(cache_path, board_key, eval_mode, white_equity)
             cache_note = "fresh eval"
 
         mover_equity = white_equity if request.position.turn == "white" else -white_equity
         equities[move.notation] = round(mover_equity, 4)
+        if white_win_pct is not None:
+            mover_win_pct = white_win_pct if request.position.turn == "white" else (100.0 - white_win_pct)
+            win_pcts[move.notation] = round(mover_win_pct, 3)
         reasons[move.notation] = [
             f"GNUbg {eval_mode} cubeless equity: {mover_equity:+.4f} ({cache_note})",
             "Evaluated after applying this candidate move to the supplied position.",
         ]
 
-    sys.stdout.write(json.dumps({"equities": equities, "reasons": reasons}))
+    payload = {"equities": equities, "reasons": reasons}
+    if win_pcts:
+        payload["win_pcts"] = win_pcts
+    sys.stdout.write(json.dumps(payload))
     return 0
 
 

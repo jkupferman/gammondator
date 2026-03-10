@@ -12,7 +12,8 @@ const state = {
   selectedFrom: null,
   submittingMove: false,
   animating: false,
-  lastHumanWinPct: null,
+  lastHumanMetricValue: null,
+  lastHumanMetricKind: null,
   transientStatus: null,
   transientStatusTimer: null,
   gameOver: false,
@@ -30,14 +31,32 @@ const LAST_SESSION_KEY = "gammondator.lastSessionId";
 const RECORD_KEY = "gammondator.record";
 
 function disableSoundEffects() {
+  if (window.Audio && !window.Audio.__gammondatorMuted) {
+    const SilentAudio = function silentAudio() {
+      return {
+        muted: true,
+        volume: 0,
+        autoplay: false,
+        play: () => Promise.resolve(),
+        pause: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      };
+    };
+    SilentAudio.__gammondatorMuted = true;
+    window.Audio = SilentAudio;
+  }
+
   const mediaProto = window.HTMLMediaElement && window.HTMLMediaElement.prototype;
   if (mediaProto && !mediaProto.__gammondatorMuted) {
     mediaProto.__gammondatorMuted = true;
     mediaProto.play = function playMutedMedia() {
       this.muted = true;
+      this.defaultMuted = true;
       this.volume = 0;
       return Promise.resolve();
     };
+    mediaProto.load = function loadMutedMedia() {};
   }
 
   const audioContextNames = ["AudioContext", "webkitAudioContext"];
@@ -46,6 +65,9 @@ function disableSoundEffects() {
     if (!Original || Original.__gammondatorMuted) continue;
     const MutedAudioContext = function mutedAudioContext(...args) {
       const ctx = new Original(...args);
+      if (typeof ctx.resume === "function") {
+        ctx.resume = () => Promise.resolve();
+      }
       if (typeof ctx.suspend === "function") {
         ctx.suspend().catch(() => {});
       }
@@ -795,7 +817,8 @@ async function createNewSession() {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.submittingMove = false;
-    state.lastHumanWinPct = null;
+    state.lastHumanMetricValue = null;
+    state.lastHumanMetricKind = null;
     state.gameOver = false;
     state.winner = null;
     state.gameOverHandled = false;
@@ -822,7 +845,8 @@ async function loadSession(sessionId) {
     state.moveSteps = [];
     state.selectedFrom = null;
     state.submittingMove = false;
-    state.lastHumanWinPct = null;
+    state.lastHumanMetricValue = null;
+    state.lastHumanMetricKind = null;
     state.gameOver = false;
     state.winner = null;
     state.gameOverHandled = false;
@@ -973,13 +997,19 @@ async function submitMove() {
     const aiSummary = aiReplies.length
       ? `AI replies: ${aiReplies.map((turn) => turn.selected_play?.notation || turn.selected_move?.notation || "pass").join(" | ")}`
       : "";
-    const feedback = buildAnalysisFeedback(played.analysis, state.lastHumanWinPct, aiSummary);
+    const feedback = buildAnalysisFeedback(
+      played.analysis,
+      state.lastHumanMetricValue,
+      state.lastHumanMetricKind,
+      aiSummary,
+    );
     if (!feedback.ok) {
       notify(feedback.text || "No move analysis available.");
     } else {
       el.feedback.innerHTML = feedback.html;
       state.lastMessage = el.feedback.textContent || "Move analyzed.";
-      state.lastHumanWinPct = feedback.nextHumanWinPct;
+      state.lastHumanMetricValue = feedback.nextHumanMetricValue;
+      state.lastHumanMetricKind = feedback.nextHumanMetricKind;
       renderDebugPanel();
     }
     await refreshLegalMoves();

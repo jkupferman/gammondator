@@ -90,6 +90,7 @@ class GnuBGBridgeBackend(AnalyzerBackend):
 
         equities = payload.get("equities")
         reasons = payload.get("reasons")
+        win_pcts = payload.get("win_pcts")
 
         if not isinstance(equities, dict):
             raise BackendUnavailableError("GNUbg bridge payload must include an 'equities' object")
@@ -107,10 +108,25 @@ class GnuBGBridgeBackend(AnalyzerBackend):
                 if isinstance(value, list):
                     normalized_reasons[str(key)] = [str(item) for item in value]
 
+        normalized_win_pcts: dict[str, float] = {}
+        if isinstance(win_pcts, dict):
+            for key, value in win_pcts.items():
+                try:
+                    pct = float(value)
+                except (TypeError, ValueError) as exc:
+                    raise BackendUnavailableError(f"invalid win_pcts value for move '{key}'") from exc
+                # Accept either [0,1] probabilities or [0,100] percentages from bridge scripts.
+                if pct > 1.0 and pct <= 100.0:
+                    pct = pct / 100.0
+                if pct < 0.0 or pct > 1.0:
+                    raise BackendUnavailableError(f"win_pcts value out of range for move '{key}'")
+                normalized_win_pcts[str(key)] = pct
+
         return analyze_with_explicit_equities(
             request=request,
             move_equities=normalized_equities,
             move_reasons=normalized_reasons,
+            move_win_pcts=normalized_win_pcts or None,
         )
 
     def details(self) -> str:

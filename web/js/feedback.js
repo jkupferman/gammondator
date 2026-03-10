@@ -155,12 +155,7 @@ function buildNextStepAdvice({ isOptimal, playedNotation, bestNotation, firstRea
   return "Engine preference: a line with better balance between safety and efficiency.";
 }
 
-function estimateWinPctFromEquity(equity) {
-  const normalized = Math.max(-1, Math.min(1, Number(equity) || 0));
-  return 50 + normalized * 50;
-}
-
-function formatMoveAnalysisSummary(analysis, lastHumanWinPct) {
+function formatMoveAnalysisSummary(analysis, lastHumanMetricValue, lastHumanMetricKind) {
   if (!analysis || !analysis.played_move || !analysis.best_move) {
     return null;
   }
@@ -183,8 +178,15 @@ function formatMoveAnalysisSummary(analysis, lastHumanWinPct) {
   const playedDisplay = isOptimal || isNearOptimal ? canonicalizeNotation(playedHuman) : playedHuman;
   const bestDisplay = isOptimal || isNearOptimal ? canonicalizeNotation(bestHuman) : bestHuman;
   const headline = isOptimal ? "Optimal move." : isNearOptimal ? "Near-optimal move." : qualityTitle;
-  const currentWinPct = estimateWinPctFromEquity(played.equity);
-  const winDelta = lastHumanWinPct === null ? null : currentWinPct - lastHumanWinPct;
+  const hasWinPct = typeof played.win_pct === "number";
+  const currentMetricKind = hasWinPct ? "win_pct" : "equity";
+  const currentMetricValue = hasWinPct
+    ? Number(played.win_pct || 0) * 100.0
+    : Number(played.equity || 0);
+  const metricDelta =
+    lastHumanMetricValue === null || lastHumanMetricKind !== currentMetricKind
+      ? null
+      : currentMetricValue - lastHumanMetricValue;
   const lossHint =
     isOptimal
       ? "You found an optimal move."
@@ -213,33 +215,44 @@ function formatMoveAnalysisSummary(analysis, lastHumanWinPct) {
     playedNotation: playedDisplay,
     bestLine: bestDisplay,
     equityLossLine: `Equity loss: ${loss.toFixed(3)}. ${lossHint}`,
-    winPctValue: currentWinPct,
-    winDelta,
+    metricKind: currentMetricKind,
+    metricValue: currentMetricValue,
+    metricDelta,
     whyLine: `${whyPrefix}: ${firstReason}`,
     nextStepLine,
   };
 }
 
-export function buildAnalysisFeedback(analysis, lastHumanWinPct, aiSummary = "") {
-  const summary = formatMoveAnalysisSummary(analysis, lastHumanWinPct);
+export function buildAnalysisFeedback(
+  analysis,
+  lastHumanMetricValue,
+  lastHumanMetricKind,
+  aiSummary = "",
+) {
+  const summary = formatMoveAnalysisSummary(analysis, lastHumanMetricValue, lastHumanMetricKind);
   if (!summary) {
     return {
       ok: false,
       text: "No move analysis available.",
-      nextHumanWinPct: lastHumanWinPct,
+      nextHumanMetricValue: lastHumanMetricValue,
+      nextHumanMetricKind: lastHumanMetricKind,
     };
   }
 
   const qualityClass = `quality-${summary.quality || "good"}`;
-  const hasDelta = summary.winDelta !== null;
-  const normalizedDelta = hasDelta ? Number(summary.winDelta.toFixed(1)) : null;
-  const isFlatDelta = normalizedDelta !== null && Math.abs(normalizedDelta) < 0.1;
+  const hasDelta = summary.metricDelta !== null;
+  const precision = summary.metricKind === "win_pct" ? 1 : 3;
+  const flatThreshold = summary.metricKind === "win_pct" ? 0.05 : 0.001;
+  const normalizedDelta = hasDelta ? Number(summary.metricDelta.toFixed(precision)) : null;
+  const isFlatDelta = normalizedDelta !== null && Math.abs(normalizedDelta) < flatThreshold;
   const deltaText =
     !hasDelta
       ? ""
       : isFlatDelta
         ? "(no change)"
-        : `(${normalizedDelta >= 0 ? "+" : ""}${normalizedDelta.toFixed(1)}%)`;
+        : summary.metricKind === "win_pct"
+          ? `(${normalizedDelta >= 0 ? "+" : ""}${normalizedDelta.toFixed(1)}%)`
+          : `(${normalizedDelta >= 0 ? "+" : ""}${normalizedDelta.toFixed(3)})`;
   const deltaClass =
     !hasDelta || isFlatDelta ? "delta-flat" : normalizedDelta >= 0 ? "delta-up" : "delta-down";
   const playedWithShared = renderPlayedNotationWithSharedSteps(summary.playedNotation, summary.bestLine);
@@ -251,7 +264,11 @@ export function buildAnalysisFeedback(analysis, lastHumanWinPct, aiSummary = "")
     `You played: ${playedWithShared}`,
     `Best line: <span class="${bestLineClass}">${escapeHtml(summary.bestLine)}</span>`,
     escapeHtml(summary.equityLossLine),
-    `Win Pct: ${summary.winPctValue.toFixed(1)}%` +
+    `${summary.metricKind === "win_pct" ? "Win Pct" : "Equity"}: ${
+      summary.metricKind === "win_pct"
+        ? `${summary.metricValue.toFixed(1)}%`
+        : summary.metricValue.toFixed(3)
+    }` +
       (deltaText ? ` <span class="feedback-win-delta ${deltaClass}">${escapeHtml(deltaText)}</span>` : ""),
     escapeHtml(summary.whyLine),
   ];
@@ -267,7 +284,8 @@ export function buildAnalysisFeedback(analysis, lastHumanWinPct, aiSummary = "")
   return {
     ok: true,
     html: lines.join("\n"),
-    nextHumanWinPct: summary.winPctValue,
+    nextHumanMetricValue: summary.metricValue,
+    nextHumanMetricKind: summary.metricKind,
   };
 }
 

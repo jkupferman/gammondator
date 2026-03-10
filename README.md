@@ -399,13 +399,16 @@ export GAMMONDATOR_GNUBG_DEEP_EVAL_MODE=2ply
 Bridge contract:
 
 - Input: `AnalyzeMoveRequest` JSON via stdin
-- Output: JSON via stdout with required `equities` and optional `reasons`
+- Output: JSON via stdout with required `equities` and optional `reasons` / `win_pcts`
 
 ```json
 {
   "equities": {
     "13/7 8/7": 0.1123,
     "24/18 13/7": 0.0940
+  },
+  "win_pcts": {
+    "13/7 8/7": 54.8
   },
   "reasons": {
     "13/7 8/7": ["Improves board structure.", "Reduces direct shots."]
@@ -414,6 +417,7 @@ Bridge contract:
 ```
 
 `equities` keys must match candidate move notations.
+`win_pcts` values can be either probabilities in `[0,1]` or percentages in `[0,100]`.
 
 ## Training Store
 

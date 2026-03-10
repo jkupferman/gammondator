@@ -254,6 +254,7 @@ def analyze_with_explicit_equities(
     request: AnalyzeMoveRequest,
     move_equities: dict[str, float],
     move_reasons: dict[str, list[str]] | None = None,
+    move_win_pcts: dict[str, float] | None = None,
 ) -> AnalyzeMoveResponse:
     baseline_state = PositionState.from_position(request.position)
     _, baseline_features = _evaluate(baseline_state, request.position.turn)
@@ -271,15 +272,18 @@ def analyze_with_explicit_equities(
     best_move, best_equity, best_features = scored_moves[0]
 
     reasons = move_reasons or {}
+    win_pcts = move_win_pcts or {}
 
     def to_score(item: tuple[Move, float, dict[str, int]]) -> MoveScore:
         move, equity, features = item
         delta = round(best_equity - equity, 4)
         feature_delta = {key: features[key] - baseline_features[key] for key in features}
         default_why = _why_from_features(feature_delta, is_best=isclose(delta, 0.0, abs_tol=1e-9))
+        move_win_pct = win_pcts.get(move.notation)
         return MoveScore(
             notation=move.notation,
             equity=round(equity, 4),
+            win_pct=round(float(move_win_pct), 6) if move_win_pct is not None else None,
             delta_vs_best=delta,
             quality=quality_from_delta(delta),
             why=reasons.get(move.notation, default_why),
