@@ -3,7 +3,7 @@ import sqlite3
 from fastapi.testclient import TestClient
 
 from app.main import app, runtime, session_store
-from app.schemas import AnalyzeMoveResponse, AnalyzeMoveRequest, MoveScore
+from app.schemas import AnalyzeMoveRequest, AnalyzeMoveResponse, MoveScore
 
 client = TestClient(app)
 

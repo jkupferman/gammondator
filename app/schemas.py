@@ -225,7 +225,7 @@ class SessionPlayTurnResponse(BaseModel):
     move_count: int
     analysis: AnalyzeMoveResponse
     human_position: Position
-    auto_ai_turns: list["SessionAIMoveResponse"] = Field(default_factory=list)
+    auto_ai_turns: list[SessionAIMoveResponse] = Field(default_factory=list)
     current_position: Position
 
 
