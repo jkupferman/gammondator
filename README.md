@@ -71,13 +71,13 @@ python -m pytest -q
 Run linting (Ruff):
 
 ```bash
-ruff check .
+python -m ruff check .
 ```
 
 Auto-fix lint issues where possible:
 
 ```bash
-ruff check . --fix
+python -m ruff check . --fix
 ```
 
 ## Contributing
