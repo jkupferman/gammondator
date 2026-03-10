@@ -24,13 +24,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from app.analysis import _apply_move
-from app.schemas import AnalyzeMoveRequest
-
 PATTERN_BY_MODE = {
     "0ply": re.compile(r"0-ply cubeless equity\s+([+-]?\d+(?:\.\d+)?)"),
     "1ply": re.compile(r"1-ply cubeless equity\s+([+-]?\d+(?:\.\d+)?)"),
@@ -41,6 +34,12 @@ WIN_PCT_PATTERNS = [
     re.compile(r"win\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%", re.IGNORECASE),
     re.compile(r"([0-9]+(?:\.[0-9]+)?)\s*%\s*win", re.IGNORECASE),
 ]
+
+
+def _ensure_repo_on_path() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
 
 
 def _cache_init(db_path: str) -> None:
@@ -147,6 +146,10 @@ def _extract_win_pct(output: str) -> float | None:
 
 
 def main() -> int:
+    _ensure_repo_on_path()
+    from app.analysis import _apply_move
+    from app.schemas import AnalyzeMoveRequest
+
     request = AnalyzeMoveRequest.model_validate_json(sys.stdin.read())
 
     eval_mode = os.getenv("GAMMONDATOR_GNUBG_EVAL_MODE", "2ply").strip().lower()
