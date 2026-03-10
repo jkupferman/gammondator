@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.db import Database
 from app.schemas import AnalyzeMoveResponse, Move, Position
@@ -124,7 +124,7 @@ class SessionStore:
                 conn.execute("ALTER TABLE session_turns ADD COLUMN played_move_json TEXT")
 
     def create_session(self, initial_position: Position, profile_id: str = "default") -> dict[str, object]:
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         with self._connect() as conn:
             if conn.is_postgres:
                 cursor = conn.execute(
@@ -233,7 +233,7 @@ class SessionStore:
         played_move: Move,
         actor: str = "human",
     ) -> dict[str, object]:
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
 
         with self._connect() as conn:
             row = conn.execute(
@@ -384,7 +384,7 @@ class SessionStore:
         }
 
     def set_position(self, session_id: int, position: Position) -> dict[str, object]:
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT id, status, move_count FROM sessions WHERE id = ?",
@@ -411,7 +411,7 @@ class SessionStore:
         }
 
     def close_session(self, session_id: int) -> dict[str, object]:
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT id FROM sessions WHERE id = ?",

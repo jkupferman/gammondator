@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.db import Database
 from app.schemas import AnalyzeMoveResponse, Position
@@ -144,7 +144,7 @@ class TrainingStore:
                 )
 
     def record_review(self, position: Position, analysis: AnalyzeMoveResponse, profile_id: str = "default") -> int:
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         leak_category = _classify_leak_category(analysis.played_move.why)
         with self._connect() as conn:
             if conn.is_postgres:
@@ -393,7 +393,7 @@ class TrainingStore:
 
             expected_notation = str(row["best_notation"])
             correct = int(chosen_notation.strip() == expected_notation)
-            now = datetime.now(tz=timezone.utc).isoformat()
+            now = datetime.now(tz=UTC).isoformat()
 
             cursor = conn.execute(
                 """

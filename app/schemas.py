@@ -41,7 +41,7 @@ class Position(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def validate_total_checkers(self) -> "Position":
+    def validate_total_checkers(self) -> Position:
         white_on_board = sum(x for x in self.points if x > 0)
         black_on_board = -sum(x for x in self.points if x < 0)
 

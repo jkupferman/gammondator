@@ -1,5 +1,9 @@
 # Gammondator
 
+## Authorship
+
+This codebase was written by Codex.
+
 Gammondator is a backgammon decision-coach backend. It analyzes your played move against candidate moves and returns:
 
 - best move by equity
