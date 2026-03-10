@@ -16,6 +16,7 @@ from app.backends import BackendUnavailableError, GnuBGBridgeBackend, load_backe
 from app.cube import evaluate_cube_decision
 from app.db import resolve_db_dsn
 from app.movegen import generate_legal_moves, is_legal_move, legal_move_signatures, move_signature
+from app.session_store import SessionStore
 from app.schemas import (
     AnalysisJobBatchRunResponse,
     AnalysisJobCleanupResponse,
@@ -66,7 +67,6 @@ from app.schemas import (
     TrainingReportResponse,
     TrainingSummaryResponse,
 )
-from app.session_store import SessionStore
 from app.training_store import TrainingStore
 
 app = FastAPI(title="Gammondator API", version="0.1.0")
