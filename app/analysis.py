@@ -24,7 +24,7 @@ class PositionState:
     off_black: int
 
     @classmethod
-    def from_position(cls, position: Position) -> "PositionState":
+    def from_position(cls, position: Position) -> PositionState:
         return cls(
             points=position.points.copy(),
             bar_white=position.bar_white,

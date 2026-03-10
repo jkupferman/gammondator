@@ -36,13 +36,13 @@ python -m pytest -q
 We use Ruff (modern combined linter for PEP 8 / pyflakes-style checks and imports).
 
 ```bash
-ruff check .
+python -m ruff check .
 ```
 
 Auto-fix safe issues:
 
 ```bash
-ruff check . --fix
+python -m ruff check . --fix
 ```
 
 ## Coding Standards

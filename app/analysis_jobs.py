@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.db import Database
 from app.schemas import AnalysisJobCreateRequest
@@ -75,7 +75,7 @@ class AnalysisJobStore:
                 )
 
     def create_job(self, request: AnalysisJobCreateRequest) -> int:
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         with self._connect() as conn:
             cursor = conn.execute(
                 """
@@ -161,7 +161,7 @@ class AnalysisJobStore:
         return self._row_to_dict(row)
 
     def mark_running(self, job_id: int) -> None:
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         with self._connect() as conn:
             conn.execute(
                 "UPDATE analysis_jobs SET status = 'running', updated_at = ?, error = NULL WHERE id = ?",
@@ -169,7 +169,7 @@ class AnalysisJobStore:
             )
 
     def mark_completed(self, job_id: int, result_json: str) -> None:
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         with self._connect() as conn:
             conn.execute(
                 """
@@ -181,7 +181,7 @@ class AnalysisJobStore:
             )
 
     def mark_failed(self, job_id: int, error: str) -> None:
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         with self._connect() as conn:
             conn.execute(
                 """
@@ -242,7 +242,7 @@ class AnalysisJobStore:
             return int(cursor.rowcount)
 
     def reset_to_pending(self, job_id: int) -> dict[str, object]:
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM analysis_jobs WHERE id = ?", (job_id,)).fetchone()
             if row is None:

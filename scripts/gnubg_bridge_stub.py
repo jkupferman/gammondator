@@ -11,12 +11,20 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
-from app.analysis import _apply_move, _evaluate
-from app.schemas import AnalyzeMoveRequest
+
+def _ensure_repo_on_path() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
 
 
 def main() -> int:
+    _ensure_repo_on_path()
+    from app.analysis import _apply_move, _evaluate
+    from app.schemas import AnalyzeMoveRequest
+
     raw = sys.stdin.read()
     payload = AnalyzeMoveRequest.model_validate_json(raw)
 

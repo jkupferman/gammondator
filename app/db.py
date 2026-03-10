@@ -15,7 +15,7 @@ class DBConnection:
         self._conn = conn
         self.is_postgres = is_postgres
 
-    def __enter__(self) -> "DBConnection":
+    def __enter__(self) -> DBConnection:
         return self
 
     def __exit__(self, exc_type, exc, _tb) -> None:
@@ -63,7 +63,7 @@ class Database:
             try:
                 import psycopg
                 from psycopg.rows import dict_row
-            except Exception as exc:  # pragma: no cover - only hit on postgres deployments without deps
+            except Exception as exc:  # pragma: no cover
                 raise DatabaseConfigError(
                     "Postgres selected but psycopg is not installed. Install psycopg[binary]."
                 ) from exc

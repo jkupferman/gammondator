@@ -1,14 +1,13 @@
+import logging
 import os
 import random
-import logging
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from time import perf_counter
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.analysis import apply_move_to_position
@@ -17,57 +16,57 @@ from app.backends import BackendUnavailableError, GnuBGBridgeBackend, load_backe
 from app.cube import evaluate_cube_decision
 from app.db import resolve_db_dsn
 from app.movegen import generate_legal_moves, is_legal_move, legal_move_signatures, move_signature
-from app.session_store import SessionStore
 from app.schemas import (
-    AnalyzePositionRequest,
-    AnalyzePositionResponse,
-    AnalyzeMoveRequest,
-    AnalyzeMoveResponse,
-    AnalyzerInfoResponse,
-    ClientIdentityResponse,
-    AnalysisJobCreateRequest,
     AnalysisJobBatchRunResponse,
     AnalysisJobCleanupResponse,
+    AnalysisJobCreateRequest,
     AnalysisJobListResponse,
     AnalysisJobResponse,
     AnalysisJobStatsResponse,
-    ChooseAIMoveRequest,
+    AnalyzeMoveRequest,
+    AnalyzeMoveResponse,
+    AnalyzePositionRequest,
+    AnalyzePositionResponse,
+    AnalyzerInfoResponse,
     ChooseAIMoveFromPositionRequest,
+    ChooseAIMoveRequest,
     ChooseAIMoveResponse,
+    ClientIdentityResponse,
+    CubeDecisionRequest,
+    CubeDecisionResponse,
     LegalMovesRequest,
     LegalMovesResponse,
     Move,
-    Position,
     MoveScore,
     MoveStep,
-    RatePlayedMoveRequest,
+    Position,
     RatePlayedMoveRecordedResponse,
-    CubeDecisionRequest,
-    CubeDecisionResponse,
-    SessionCreateRequest,
+    RatePlayedMoveRequest,
     SessionAIMoveRequest,
     SessionAIMoveResponse,
     SessionCloseResponse,
-    SessionRollResponse,
-    SessionReportResponse,
-    SessionTurnListResponse,
-    SessionTurnItemResponse,
-    SessionTurnReplayResponse,
+    SessionCreateRequest,
+    SessionListResponse,
     SessionPlayTurnRequest,
     SessionPlayTurnResponse,
-    SessionListResponse,
+    SessionReportResponse,
+    SessionRollResponse,
     SessionStateResponse,
-    TrainingMistakesResponse,
-    TrainingLeaksResponse,
+    SessionTurnItemResponse,
+    SessionTurnListResponse,
+    SessionTurnReplayResponse,
+    TrainingDashboardResponse,
     TrainingDrillAttemptRequest,
     TrainingDrillAttemptResponse,
     TrainingDrillsResponse,
     TrainingDrillSummaryResponse,
-    TrainingDashboardResponse,
+    TrainingLeaksResponse,
+    TrainingMistakesResponse,
     TrainingRecommendation,
     TrainingReportResponse,
     TrainingSummaryResponse,
 )
+from app.session_store import SessionStore
 from app.training_store import TrainingStore
 
 app = FastAPI(title="Gammondator API", version="0.1.0")
